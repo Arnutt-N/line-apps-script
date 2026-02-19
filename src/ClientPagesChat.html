@@ -1,0 +1,533 @@
+﻿<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.chat = {
+    pollTimer: null,
+    pollBusy: false,
+    remoteTypingTimer: null,
+
+    async init() {
+      await this.loadUsers();
+
+      try {
+        const runtime = await Api.request('chat.runtimeConfig', {});
+        Store.update('chat', {
+          ...Store.state.chat,
+          pollIntervalMs: Number(runtime.pollIntervalMs || 3000),
+          videoCallUrl: runtime.videoCallUrl || 'https://meet.google.com/new'
+        });
+      } catch (error) {
+      }
+
+      const chat = Store.state.chat;
+      if (chat.users.length && !chat.selectedUser) {
+        await this.selectUser(chat.users[0].id);
+      } else if (chat.selectedUser) {
+        await this.selectUser(chat.selectedUser.id);
+      }
+
+      this.startPolling();
+    },
+
+    destroy() {
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer);
+        this.pollTimer = null;
+      }
+      if (this.remoteTypingTimer) {
+        clearTimeout(this.remoteTypingTimer);
+      }
+      UI.setTitleBlink(false);
+    },
+
+    async loadUsers() {
+      const chatState = Store.state.chat;
+      const data = await Api.request('chat.listUsers', {
+        query: chatState.query,
+        page: 1,
+        pageSize: 100
+      });
+
+      const next = {
+        ...chatState,
+        users: data.items || []
+      };
+
+      if (next.selectedUser) {
+        const fresh = next.users.find((u) => u.id === next.selectedUser.id);
+        next.selectedUser = fresh || null;
+      }
+
+      Store.update('chat', next);
+    },
+
+    async selectUser(userId) {
+      const chatState = Store.state.chat;
+      const target = chatState.users.find((u) => u.id === userId);
+      if (!target) {
+        return;
+      }
+
+      const roomData = await Api.request('chat.getRoom', { userId: target.id, limit: 120 });
+      const last = roomData.messages.length ? roomData.messages[roomData.messages.length - 1].createdAt : '';
+
+      Store.update('chat', {
+        ...chatState,
+        selectedUser: roomData.user,
+        selectedRoom: roomData.room,
+        messages: roomData.messages,
+        mode: roomData.room.mode,
+        pollSince: last,
+        hasNewMessage: false
+      });
+
+      setTimeout(() => this.scrollToBottom(), 40);
+    },
+
+    async sendMessageFromComposer() {
+      const chatState = Store.state.chat;
+      if (!chatState.selectedUser || !chatState.selectedRoom) {
+        UI.toast('กรุณาเลือกผู้ใช้ก่อน', 'Live Chat');
+        return;
+      }
+
+      const textarea = document.getElementById('chatComposerInput');
+      const typeSelect = document.getElementById('chatMessageType');
+      const fileInput = document.getElementById('chatFileInput');
+
+      const draft = (textarea ? textarea.value : '').trim();
+      const messageType = typeSelect ? typeSelect.value : 'text';
+      const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+      if (!draft && !file && messageType === 'text') {
+        return;
+      }
+
+      const payload = {
+        userId: chatState.selectedUser.id,
+        roomId: chatState.selectedRoom.id,
+        messageType,
+        text: draft
+      };
+
+      if (file) {
+        const fileData = await this.toDataUrl(file);
+        payload.fileDataUrl = fileData;
+        payload.fileName = file.name;
+        payload.fileMimeType = file.type;
+        if (messageType === 'text') {
+          payload.messageType = 'file';
+        }
+      }
+
+      Store.update('chat', {
+        ...chatState,
+        typing: true
+      });
+
+      try {
+        await Api.request('chat.sendMessage', payload);
+        if (textarea) {
+          textarea.value = '';
+        }
+        if (fileInput) {
+          fileInput.value = '';
+        }
+        await this.selectUser(chatState.selectedUser.id);
+      } finally {
+        const current = Store.state.chat;
+        Store.update('chat', {
+          ...current,
+          typing: false
+        });
+      }
+    },
+
+    async toggleMode() {
+      const chatState = Store.state.chat;
+      if (!chatState.selectedRoom) {
+        return;
+      }
+
+      const nextMode = chatState.mode === 'bot' ? 'manual' : 'bot';
+      const room = await Api.request('chat.toggleMode', {
+        roomId: chatState.selectedRoom.id,
+        mode: nextMode
+      });
+
+      Store.update('chat', {
+        ...chatState,
+        selectedRoom: {
+          ...chatState.selectedRoom,
+          mode: room.mode
+        },
+        mode: room.mode
+      });
+
+      UI.toast(`สลับโหมดเป็น ${room.mode}`, 'Chat Room');
+    },
+
+    async startCall() {
+      const chat = Store.state.chat;
+      const base = chat.videoCallUrl || 'https://meet.google.com/new';
+      const selectedUser = chat.selectedUser;
+      const callUrl = `${base}?user=${encodeURIComponent(selectedUser ? selectedUser.lineUserId : '')}`;
+      window.open(callUrl, '_blank', 'noopener');
+    },
+
+    startPolling() {
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer);
+      }
+
+      const tick = async () => {
+        const chat = Store.state.chat;
+        if (!chat.selectedRoom || this.pollBusy) {
+          return;
+        }
+
+        this.pollBusy = true;
+        try {
+          const res = await Api.request('chat.pollUpdates', {
+            roomId: chat.selectedRoom.id,
+            since: chat.pollSince
+          });
+
+          const incoming = res.messages || [];
+          if (!incoming.length) {
+            return;
+          }
+
+          const knownIds = new Set((chat.messages || []).map((m) => m.id));
+          const add = incoming.filter((m) => !knownIds.has(m.id));
+          if (!add.length) {
+            return;
+          }
+
+          const merged = [...chat.messages, ...add].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+          const latest = merged[merged.length - 1] || {};
+          const hasInbound = add.some((m) => m.senderType === 'user');
+
+          Store.update('chat', {
+            ...Store.state.chat,
+            messages: merged,
+            pollSince: latest.createdAt || chat.pollSince,
+            hasNewMessage: hasInbound,
+            remoteTyping: hasInbound
+          });
+
+          if (hasInbound) {
+            if (document.hidden) {
+              UI.beep();
+              UI.setTitleBlink(true);
+            }
+            const preview = add.find((m) => m.senderType === 'user');
+            UI.toast(preview ? preview.text || `[${preview.messageType}]` : 'มีข้อความใหม่', 'Incoming Message');
+
+            if (this.remoteTypingTimer) {
+              clearTimeout(this.remoteTypingTimer);
+            }
+            this.remoteTypingTimer = setTimeout(() => {
+              const s = Store.state.chat;
+              Store.update('chat', { ...s, remoteTyping: false });
+            }, 1200);
+          }
+
+          setTimeout(() => this.scrollToBottom(), 40);
+        } catch (error) {
+        } finally {
+          this.pollBusy = false;
+        }
+      };
+
+      const intervalMs = Number(Store.state.chat.pollIntervalMs || 3000);
+      this.pollTimer = setInterval(tick, intervalMs);
+      tick();
+    },
+
+    scrollToBottom() {
+      const node = document.getElementById('chatMessagesBox');
+      if (!node) {
+        return;
+      }
+      node.scrollTop = node.scrollHeight;
+    },
+
+    toDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
+    },
+
+    render() {
+      const chat = Store.state.chat;
+      const selectedUser = chat.selectedUser;
+      const selectedRoom = chat.selectedRoom;
+
+      const usersHtml = (chat.users || [])
+        .map((user) => {
+          const active = selectedUser && selectedUser.id === user.id;
+          const modeClass = String(user.room.mode || 'bot') === 'manual' ? 'status-manual' : 'status-bot';
+          return `
+            <div class="user-item ${active ? 'active' : ''}" data-chat-user="${UI.escapeHtml(user.id)}">
+              ${UI.avatar(user.displayName, user.pictureUrl)}
+              <div>
+                <div style="font-size:13px;font-weight:600;line-height:1.2;">${UI.escapeHtml(user.displayName)}</div>
+                <div class="muted" style="display:flex;align-items:center;gap:6px;">
+                  <span>${UI.escapeHtml(user.room.lastMessageText || '-')}</span>
+                </div>
+                <div class="muted" style="margin-top:3px;">${UI.escapeHtml(user.statusMessage || '')}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                <span class="status-pill ${modeClass}">${UI.escapeHtml(user.room.mode || 'bot')}</span>
+                <span class="muted">${UI.escapeHtml(user.room.unreadCount || 0)}</span>
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+
+      const messagesHtml = (chat.messages || [])
+        .map((m) => {
+          const rowClass = m.senderType === 'user' ? 'user' : m.senderType;
+          const title = m.senderType === 'user' ? (selectedUser ? selectedUser.displayName : 'User') : m.senderType;
+          const content = m.messageType === 'text'
+            ? UI.escapeHtml(m.text || '')
+            : `<span class="muted">[${UI.escapeHtml(m.messageType)}]</span>`;
+
+          return `
+            <div class="msg-row ${rowClass}">
+              <div class="msg-bubble">
+                <div style="font-size:11px;color:#64748b;">${UI.escapeHtml(title)}</div>
+                <div style="font-size:14px;line-height:1.45;word-break:break-word;">${content}</div>
+                <div class="msg-meta">${UI.escapeHtml(UI.shortTime(m.createdAt))}</div>
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+
+      const modeClass = chat.mode === 'manual' ? 'status-manual' : 'status-bot';
+
+      return `
+        <div class="chat-shell">
+          <section class="panel">
+            <div class="panel-top">
+              <div>
+                <div style="font-weight:700;">Users</div>
+                <div class="muted">รายชื่อผู้ใช้และการจัดการ</div>
+              </div>
+              <button class="icon-btn" id="chatRefreshUsers" title="Refresh"><i data-lucide="refresh-cw"></i></button>
+            </div>
+            <div style="padding:10px;border-bottom:1px solid #e7eef7;">
+              <input id="chatUserSearch" class="input" type="text" placeholder="Search user, tag, message" value="${UI.escapeHtml(chat.query || '')}" style="width:100%;" />
+            </div>
+            <div class="user-list">${usersHtml || '<div class="muted" style="padding:12px;">No users</div>'}</div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-top">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                ${selectedUser ? UI.avatar(selectedUser.displayName, selectedUser.pictureUrl) : '<div class="avatar">-</div>'}
+                <div style="min-width:0;">
+                  <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${UI.escapeHtml(selectedUser ? selectedUser.displayName : 'เลือกผู้ใช้')}</div>
+                  <div class="muted">${UI.escapeHtml(selectedUser ? selectedUser.lineUserId : '-')}</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="status-pill ${modeClass}">${UI.escapeHtml(chat.mode || 'bot')}</span>
+                <button class="btn-soft" id="chatToggleMode">Toggle Bot/Manual</button>
+                <button class="btn-soft" id="chatStartCall"><i data-lucide="video"></i> Video Call</button>
+              </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessagesBox">
+              ${messagesHtml || '<div class="muted">No messages</div>'}
+              ${chat.remoteTyping ? '<div class="typing-indicator"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>' : ''}
+            </div>
+
+            <div class="chat-composer">
+              <div class="composer-tools">
+                <select class="input" id="chatMessageType" style="min-width:140px;">
+                  <option value="text">Text</option>
+                  <option value="sticker">Sticker</option>
+                  <option value="image">Image</option>
+                  <option value="file">File</option>
+                  <option value="video">Video</option>
+                  <option value="audio">Audio</option>
+                  <option value="location">Location</option>
+                </select>
+                <button class="icon-btn" id="chatInsertEmoji" title="Emoji"><i data-lucide="smile"></i></button>
+                <button class="icon-btn" id="chatQuickSticker" title="Quick sticker"><i data-lucide="sticker"></i></button>
+                <button class="icon-btn" id="chatAttachFile" title="Attach file"><i data-lucide="paperclip"></i></button>
+                <input id="chatFileInput" type="file" style="display:none;" />
+                <span class="muted">รองรับ drag/resize ช่องพิมพ์</span>
+              </div>
+              <textarea id="chatComposerInput" class="composer-input" placeholder="Type your message here..."></textarea>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="muted">${chat.typing ? 'กำลังส่งข้อความ...' : 'พร้อมส่งข้อความ'}</div>
+                <button class="btn" id="chatSendBtn"><i data-lucide="send"></i> Send Message</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-top">
+              <div>
+                <div style="font-weight:700;">User Profile</div>
+                <div class="muted">รายละเอียดผู้ใช้และตัวเลือก</div>
+              </div>
+            </div>
+            <div style="padding:14px;display:grid;gap:10px;">
+              ${selectedUser
+                ? `
+                <div class="section-card">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    ${UI.avatar(selectedUser.displayName, selectedUser.pictureUrl)}
+                    <div>
+                      <div style="font-weight:700;">${UI.escapeHtml(selectedUser.displayName)}</div>
+                      <div class="muted">${UI.escapeHtml(selectedUser.lineUserId)}</div>
+                    </div>
+                  </div>
+                  <div class="muted" style="margin-top:8px;">Status: ${UI.escapeHtml(selectedUser.statusMessage || '-')}</div>
+                  <div class="muted">Language: ${UI.escapeHtml(selectedUser.language || '-')}</div>
+                  <div class="muted">Last Seen: ${UI.escapeHtml(UI.formatDateTime(selectedUser.lastSeenAt))}</div>
+                </div>
+
+                <div class="section-card">
+                  <div class="section-title">Actions</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <button class="btn-soft" data-user-action="pin">Pin</button>
+                    <button class="btn-soft" data-user-action="tag">Tag</button>
+                    <button class="btn-soft" data-user-action="mute">Mute</button>
+                    <button class="btn-soft" data-user-action="manual">Force Manual</button>
+                    <button class="btn-soft" data-user-action="block">Block/Unblock</button>
+                    <button class="btn-soft" data-user-action="export">Export Chat</button>
+                  </div>
+                </div>
+
+                <div class="section-card">
+                  <div class="section-title">Room Info</div>
+                  <div class="muted">Room ID: ${UI.escapeHtml(selectedRoom ? selectedRoom.id : '-')}</div>
+                  <div class="muted">Mode: ${UI.escapeHtml(chat.mode)}</div>
+                  <div class="muted">Unread: ${UI.escapeHtml(selectedRoom ? selectedRoom.unreadCount : 0)}</div>
+                </div>
+              `
+                : '<div class="muted">Select user to view profile</div>'}
+            </div>
+          </section>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      const onSearch = root.querySelector('#chatUserSearch');
+      if (onSearch) {
+        onSearch.addEventListener('input', async (e) => {
+          const chatState = Store.state.chat;
+          Store.update('chat', {
+            ...chatState,
+            query: e.target.value
+          });
+          await this.loadUsers();
+        });
+      }
+
+      const refreshBtn = root.querySelector('#chatRefreshUsers');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+          await this.loadUsers();
+          UI.toast('รีเฟรชรายชื่อแล้ว', 'Live Chat');
+        });
+      }
+
+      root.querySelectorAll('[data-chat-user]').forEach((node) => {
+        node.addEventListener('click', async () => {
+          const userId = node.getAttribute('data-chat-user');
+          await this.selectUser(userId);
+          UI.setTitleBlink(false);
+        });
+      });
+
+      const sendBtn = root.querySelector('#chatSendBtn');
+      if (sendBtn) {
+        sendBtn.addEventListener('click', () => this.sendMessageFromComposer());
+      }
+
+      const composer = root.querySelector('#chatComposerInput');
+      if (composer) {
+        composer.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            this.sendMessageFromComposer();
+          }
+        });
+      }
+
+      const toggleMode = root.querySelector('#chatToggleMode');
+      if (toggleMode) {
+        toggleMode.addEventListener('click', () => this.toggleMode());
+      }
+
+      const startCall = root.querySelector('#chatStartCall');
+      if (startCall) {
+        startCall.addEventListener('click', () => this.startCall());
+      }
+
+      const emojiBtn = root.querySelector('#chatInsertEmoji');
+      if (emojiBtn) {
+        emojiBtn.addEventListener('click', () => {
+          const textarea = document.getElementById('chatComposerInput');
+          if (textarea) {
+            textarea.value = `${textarea.value} 😀`;
+            textarea.focus();
+          }
+        });
+      }
+
+      const stickerBtn = root.querySelector('#chatQuickSticker');
+      if (stickerBtn) {
+        stickerBtn.addEventListener('click', async () => {
+          const select = document.getElementById('chatMessageType');
+          if (select) {
+            select.value = 'sticker';
+          }
+          await this.sendMessageFromComposer();
+        });
+      }
+
+      const attachBtn = root.querySelector('#chatAttachFile');
+      const fileInput = root.querySelector('#chatFileInput');
+      if (attachBtn && fileInput) {
+        attachBtn.addEventListener('click', () => fileInput.click());
+      }
+
+      root.querySelectorAll('[data-user-action]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const action = btn.getAttribute('data-user-action');
+          if (action === 'manual') {
+            await this.toggleMode();
+            return;
+          }
+          if (action === 'export') {
+            const payload = JSON.stringify(Store.state.chat.messages || [], null, 2);
+            const blob = new Blob([payload], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chat_${Store.state.chat.selectedUser ? Store.state.chat.selectedUser.id : 'unknown'}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            return;
+          }
+          UI.toast(`Action: ${action}`, 'User Action');
+        });
+      });
+
+      UI.iconRefresh();
+    }
+  };
+</script>

@@ -1,0 +1,143 @@
+﻿<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.liff = {
+    async init() {
+      await this.reload();
+    },
+
+    destroy() {},
+
+    async reload() {
+      const data = await Api.request('liff.list', {});
+      Store.update('liff', data);
+    },
+
+    async create() {
+      const name = document.getElementById('liffName').value.trim();
+      const liffId = document.getElementById('liffId').value.trim();
+      const schemaRaw = document.getElementById('liffSchema').value.trim();
+
+      let schema;
+      try {
+        schema = JSON.parse(schemaRaw || '{}');
+      } catch (error) {
+        UI.toast('Schema JSON ไม่ถูกต้อง', 'LIFF');
+        return;
+      }
+
+      await Api.request('liff.create', { name, liffId, schema });
+      UI.toast('สร้าง LIFF Form แล้ว', 'LIFF');
+      await this.reload();
+    },
+
+    async publish(id) {
+      const form = (Store.state.liff.items || []).find((f) => f.id === id);
+      if (!form) {
+        return;
+      }
+      const liffId = prompt('LIFF ID', form.liffId || '');
+      if (liffId == null) {
+        return;
+      }
+      await Api.request('liff.publish', {
+        id,
+        liffId,
+        schema: form.schema
+      });
+      UI.toast('Publish LIFF Form แล้ว', 'LIFF');
+      await this.reload();
+    },
+
+    async remove(id) {
+      await Api.request('liff.delete', { id });
+      await this.reload();
+    },
+
+    render() {
+      const items = (Store.state.liff && Store.state.liff.items) || [];
+
+      return `
+        <div class="section-card">
+          <div class="section-title">LIFF Management</div>
+          <div class="muted">สร้างฟอร์ม LIFF จาก template/schema และ publish ใช้งาน</div>
+        </div>
+
+        <div class="split-2" style="margin-top:12px;">
+          <div class="section-card">
+            <div class="section-title">Create LIFF Form</div>
+            <div style="display:grid;gap:8px;">
+              <input id="liffName" class="input" placeholder="Form Name" />
+              <input id="liffId" class="input" placeholder="LIFF ID (optional)" />
+              <textarea id="liffSchema" class="composer-input" style="min-height:130px;" placeholder='{"version":1,"fields":[]}'></textarea>
+              <button class="btn" id="liffCreateBtn"><i data-lucide="plus"></i> Create</button>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">Roadmap</div>
+            <div class="muted">Phase 2 แนะนำเพิ่ม drag-and-drop builder, validation rules, conditional fields, and publish workflows.</div>
+          </div>
+        </div>
+
+        <div class="section-card" style="margin-top:14px;">
+          <div class="section-title">LIFF Forms</div>
+          <div class="table-wrap" style="max-height:420px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>LIFF ID</th>
+                  <th>Status</th>
+                  <th>Published</th>
+                  <th>Schema</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${
+                  items.length
+                    ? items
+                        .map(
+                          (item) => `
+                      <tr>
+                        <td>${UI.escapeHtml(item.name)}</td>
+                        <td>${UI.escapeHtml(item.liffId || '-')}</td>
+                        <td>${UI.escapeHtml(item.status || '-')}</td>
+                        <td>${UI.escapeHtml(UI.formatDateTime(item.publishedAt))}</td>
+                        <td><pre style="margin:0;font-size:11px;white-space:pre-wrap;">${UI.escapeHtml(JSON.stringify(item.schema || {}, null, 2))}</pre></td>
+                        <td>
+                          <button class="btn-soft" data-liff-publish="${UI.escapeHtml(item.id)}">Publish</button>
+                          <button class="btn-danger" data-liff-delete="${UI.escapeHtml(item.id)}">Delete</button>
+                        </td>
+                      </tr>
+                    `
+                        )
+                        .join('')
+                    : '<tr><td colspan="6" class="muted">No LIFF forms</td></tr>'
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      const createBtn = root.querySelector('#liffCreateBtn');
+      if (createBtn) {
+        createBtn.addEventListener('click', () => this.create());
+      }
+
+      root.querySelectorAll('[data-liff-publish]').forEach((btn) => {
+        btn.addEventListener('click', () => this.publish(btn.getAttribute('data-liff-publish')));
+      });
+
+      root.querySelectorAll('[data-liff-delete]').forEach((btn) => {
+        btn.addEventListener('click', () => this.remove(btn.getAttribute('data-liff-delete')));
+      });
+
+      UI.iconRefresh();
+    }
+  };
+</script>

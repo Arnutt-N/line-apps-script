@@ -1,0 +1,189 @@
+﻿<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.autoreply = {
+    async init() {
+      await this.reload();
+    },
+
+    destroy() {},
+
+    async reload() {
+      const data = await Api.request('autoreply.list', {});
+      Store.update('autoReply', data);
+    },
+
+    async createIntent() {
+      const key = document.getElementById('arIntentKey').value.trim();
+      const name = document.getElementById('arIntentName').value.trim();
+      const description = document.getElementById('arIntentDescription').value.trim();
+
+      await Api.request('autoreply.createIntent', {
+        key,
+        name,
+        description,
+        priority: 0,
+        isActive: true
+      });
+
+      UI.toast('เพิ่ม intent แล้ว', 'Auto Reply');
+      await this.reload();
+    },
+
+    async addKeyword(intentId) {
+      const keyword = prompt('Keyword ที่ต้องการเพิ่ม');
+      if (!keyword) {
+        return;
+      }
+      await Api.request('autoreply.upsertKeyword', {
+        intentId,
+        keyword,
+        matchType: 'contains',
+        weight: 1,
+        isActive: true
+      });
+      await this.reload();
+    },
+
+    async addResponse(intentId) {
+      const templates = Store.state.autoReply.templates || [];
+      if (!templates.length) {
+        UI.toast('ไม่มี template', 'Auto Reply');
+        return;
+      }
+      const templateId = prompt('Template ID สำหรับ response', templates[0].id);
+      if (!templateId) {
+        return;
+      }
+      await Api.request('autoreply.upsertResponse', {
+        intentId,
+        responseType: 'template',
+        templateId,
+        isActive: true
+      });
+      await this.reload();
+    },
+
+    async testMatch() {
+      const text = document.getElementById('arTestInput').value.trim();
+      const result = await Api.request('autoreply.testMatch', { text });
+      const output = document.getElementById('arTestOutput');
+      output.textContent = JSON.stringify(result, null, 2);
+    },
+
+    render() {
+      const ar = Store.state.autoReply || {};
+      const intents = ar.intents || [];
+      const keywords = ar.keywords || [];
+      const responses = ar.responses || [];
+
+      return `
+        <div class="section-card">
+          <div class="section-title">Auto Replies Message</div>
+          <div class="muted">CRUD intents + training keywords + response objects พร้อม intent matching test</div>
+        </div>
+
+        <div class="split-2" style="margin-top:12px;">
+          <div class="section-card">
+            <div class="section-title">Create Intent</div>
+            <div style="display:grid;gap:8px;">
+              <input id="arIntentKey" class="input" placeholder="intent_key" />
+              <input id="arIntentName" class="input" placeholder="Intent Name" />
+              <input id="arIntentDescription" class="input" placeholder="Description" />
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn" id="arCreateIntentBtn"><i data-lucide="plus"></i> Create Intent</button>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">Intent Test Console</div>
+            <input id="arTestInput" class="input" placeholder="พิมพ์ข้อความทดสอบ intent" style="width:100%;" />
+            <div style="margin-top:10px;display:flex;gap:8px;">
+              <button class="btn-soft" id="arTestBtn">Test Match</button>
+              <button class="btn-soft" id="arReloadBtn">Reload</button>
+            </div>
+            <pre id="arTestOutput" style="margin-top:10px;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:10px;max-height:220px;overflow:auto;font-size:11px;">{}</pre>
+          </div>
+        </div>
+
+        <div class="section-card" style="margin-top:14px;">
+          <div class="section-title">Intent List</div>
+          <div class="table-wrap" style="max-height:420px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Intent</th>
+                  <th>Keywords</th>
+                  <th>Responses</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${
+                  intents.length
+                    ? intents
+                        .map((intent) => {
+                          const kw = keywords.filter((k) => k.intentId === intent.id);
+                          const rs = responses.filter((r) => r.intentId === intent.id);
+                          return `
+                            <tr>
+                              <td>
+                                <div style="font-weight:700;">${UI.escapeHtml(intent.name || intent.key)}</div>
+                                <div class="muted">${UI.escapeHtml(intent.key)}</div>
+                              </td>
+                              <td>
+                                ${(kw || [])
+                                  .map((k) => `<div class="muted">${UI.escapeHtml(k.keyword)} (${UI.escapeHtml(k.matchType)})</div>`)
+                                  .join('') || '-'}
+                              </td>
+                              <td>
+                                ${(rs || [])
+                                  .map((r) => `<div class="muted">${UI.escapeHtml(r.responseType)} : ${UI.escapeHtml(r.templateId || '')}</div>`)
+                                  .join('') || '-'}
+                              </td>
+                              <td>
+                                <button class="btn-soft" data-ar-kw="${UI.escapeHtml(intent.id)}">+ Keyword</button>
+                                <button class="btn-soft" data-ar-rs="${UI.escapeHtml(intent.id)}">+ Response</button>
+                              </td>
+                            </tr>
+                          `;
+                        })
+                        .join('')
+                    : '<tr><td colspan="4" class="muted">No intents yet</td></tr>'
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      const createBtn = root.querySelector('#arCreateIntentBtn');
+      if (createBtn) {
+        createBtn.addEventListener('click', () => this.createIntent());
+      }
+
+      const testBtn = root.querySelector('#arTestBtn');
+      if (testBtn) {
+        testBtn.addEventListener('click', () => this.testMatch());
+      }
+
+      const reloadBtn = root.querySelector('#arReloadBtn');
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', () => this.reload());
+      }
+
+      root.querySelectorAll('[data-ar-kw]').forEach((btn) => {
+        btn.addEventListener('click', () => this.addKeyword(btn.getAttribute('data-ar-kw')));
+      });
+
+      root.querySelectorAll('[data-ar-rs]').forEach((btn) => {
+        btn.addEventListener('click', () => this.addResponse(btn.getAttribute('data-ar-rs')));
+      });
+
+      UI.iconRefresh();
+    }
+  };
+</script>

@@ -1,0 +1,155 @@
+﻿<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.histories = {
+    async init() {
+      await this.reload();
+    },
+
+    destroy() {},
+
+    async reload() {
+      const friendRes = await Api.request('histories.friends', { page: 1, pageSize: 100 });
+      const chatRes = await Api.request('histories.chats', { page: 1, pageSize: 120 });
+      Store.update('histories', {
+        friends: friendRes.items || [],
+        chats: chatRes.items || []
+      });
+    },
+
+    async searchChats() {
+      const query = document.getElementById('hsChatSearch').value.trim();
+      const senderType = document.getElementById('hsSenderType').value;
+      const messageType = document.getElementById('hsMessageType').value;
+      const chatRes = await Api.request('histories.chats', {
+        query,
+        senderType,
+        messageType,
+        page: 1,
+        pageSize: 120
+      });
+      Store.update('histories', {
+        ...Store.state.histories,
+        chats: chatRes.items || []
+      });
+    },
+
+    render() {
+      const histories = Store.state.histories || { friends: [], chats: [] };
+      const friends = histories.friends || [];
+      const chats = histories.chats || [];
+
+      return `
+        <div class="section-card">
+          <div class="section-title">Friends Histories & Chat Histories</div>
+          <div class="muted">จัดการประวัติเพิ่มเพื่อน, ยกเลิกเพื่อน, เพิ่มเพื่อนครั้งที่ N และประวัติแชตแบบค้นหาได้</div>
+        </div>
+
+        <div class="split-2" style="margin-top:12px;">
+          <div class="section-card">
+            <div class="section-title">Friends Histories</div>
+            <div class="table-wrap" style="max-height:330px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Event</th>
+                    <th>Source</th>
+                    <th>Nth Add</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${
+                    friends.length
+                      ? friends
+                          .map(
+                            (row) => `
+                        <tr>
+                          <td>${UI.escapeHtml(UI.formatDateTime(row.eventAt))}</td>
+                          <td>${UI.escapeHtml(row.displayName || row.lineUserId)}</td>
+                          <td>${UI.escapeHtml(row.eventType)}</td>
+                          <td>${UI.escapeHtml(row.source)}</td>
+                          <td>${UI.escapeHtml(row.nthAdd)}</td>
+                        </tr>
+                      `
+                          )
+                          .join('')
+                      : '<tr><td colspan="5" class="muted">No records</td></tr>'
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">Chat Histories Filter</div>
+            <div style="display:grid;grid-template-columns:1fr 140px 140px auto;gap:8px;">
+              <input id="hsChatSearch" class="input" placeholder="Search user/message" />
+              <select id="hsSenderType" class="input">
+                <option value="">All Sender</option>
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+                <option value="bot">Bot</option>
+              </select>
+              <select id="hsMessageType" class="input">
+                <option value="">All Type</option>
+                <option value="text">text</option>
+                <option value="sticker">sticker</option>
+                <option value="image">image</option>
+                <option value="video">video</option>
+                <option value="audio">audio</option>
+                <option value="location">location</option>
+                <option value="file">file</option>
+                <option value="postback">postback</option>
+              </select>
+              <button class="btn-soft" id="hsSearchBtn">Search</button>
+            </div>
+
+            <div class="table-wrap" style="max-height:330px;margin-top:10px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Sender</th>
+                    <th>Type</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${
+                    chats.length
+                      ? chats
+                          .map(
+                            (row) => `
+                        <tr>
+                          <td>${UI.escapeHtml(UI.formatDateTime(row.createdAt))}</td>
+                          <td>${UI.escapeHtml(row.displayName || row.lineUserId)}</td>
+                          <td>${UI.escapeHtml(row.senderType)}</td>
+                          <td>${UI.escapeHtml(row.messageType)}</td>
+                          <td style="max-width:280px;word-break:break-word;">${UI.escapeHtml(row.text || `[${row.messageType}]`)}</td>
+                        </tr>
+                      `
+                          )
+                          .join('')
+                      : '<tr><td colspan="5" class="muted">No chat records</td></tr>'
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      const searchBtn = root.querySelector('#hsSearchBtn');
+      if (searchBtn) {
+        searchBtn.addEventListener('click', () => this.searchChats());
+      }
+
+      UI.iconRefresh();
+    }
+  };
+</script>

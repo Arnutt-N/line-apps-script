@@ -1,0 +1,98 @@
+﻿<script>
+  window.UI = {
+    escapeHtml(input) {
+      return String(input == null ? '' : input)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    },
+
+    formatDateTime(value) {
+      if (!value) {
+        return '-';
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return String(value);
+      }
+      return new Intl.DateTimeFormat('th-TH', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      }).format(date);
+    },
+
+    shortTime(value) {
+      if (!value) {
+        return '';
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return '';
+      }
+      return new Intl.DateTimeFormat('th-TH', {
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    },
+
+    avatar(name, imageUrl) {
+      const safe = this.escapeHtml(name || '?');
+      const initials = safe.split(' ').map((x) => x[0] || '').join('').slice(0, 2).toUpperCase() || '?';
+      if (imageUrl) {
+        return `<div class="avatar"><img src="${this.escapeHtml(imageUrl)}" alt="avatar" /></div>`;
+      }
+      return `<div class="avatar">${initials}</div>`;
+    },
+
+    toast(message, title) {
+      const container = document.getElementById('toastContainer');
+      if (!container) {
+        return;
+      }
+      const item = document.createElement('div');
+      item.className = 'toast';
+      item.innerHTML = `
+        <div style="font-size:12px;color:#0f766e;font-weight:700;">${this.escapeHtml(title || 'Notification')}</div>
+        <div style="margin-top:4px;font-size:13px;color:#0f172a;">${this.escapeHtml(message || '')}</div>
+      `;
+      container.appendChild(item);
+      setTimeout(() => {
+        item.remove();
+      }, 4200);
+    },
+
+    beep() {
+      try {
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(920, context.currentTime);
+        gain.gain.setValueAtTime(0.08, context.currentTime);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + 0.14);
+      } catch (error) {
+      }
+    },
+
+    setTitleBlink(active) {
+      if (active) {
+        document.title = '● New Message | LINE OA Platform';
+        document.body.classList.add('blink-title');
+      } else {
+        document.title = 'LINE OA Platform';
+        document.body.classList.remove('blink-title');
+      }
+    },
+
+    iconRefresh() {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    }
+  };
+</script>

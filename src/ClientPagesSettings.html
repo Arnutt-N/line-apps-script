@@ -1,0 +1,171 @@
+﻿<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.settings = {
+    lastTest: null,
+
+    async init() {
+      await this.reload();
+    },
+
+    destroy() {},
+
+    async reload() {
+      const data = await Api.request('settings.get', {});
+      Store.update('settings', { data });
+    },
+
+    async updateSetting() {
+      const key = document.getElementById('stKey').value.trim();
+      const value = document.getElementById('stValue').value.trim();
+      const settingType = document.getElementById('stType').value;
+      const isSecret = document.getElementById('stSecret').checked;
+
+      await Api.request('settings.update', {
+        mode: 'sheet',
+        key,
+        value,
+        settingType,
+        isSecret
+      });
+
+      UI.toast('บันทึก setting แล้ว', 'Settings');
+      await this.reload();
+    },
+
+    async updateScriptProperty() {
+      const key = document.getElementById('spKey').value.trim();
+      const value = document.getElementById('spValue').value.trim();
+      if (!key) {
+        return;
+      }
+
+      await Api.request('settings.update', {
+        mode: 'scriptProperty',
+        key,
+        value
+      });
+
+      UI.toast('อัปเดต Script Property แล้ว', 'Settings');
+      await this.reload();
+    },
+
+    async testConnection() {
+      const target = document.getElementById('stConnTarget').value;
+      this.lastTest = await Api.request('settings.testConnection', { target });
+      this.renderIntoMain();
+    },
+
+    renderIntoMain() {
+      window.AppClient.render();
+    },
+
+    render() {
+      const data = Store.state.settings && Store.state.settings.data;
+      const settings = (data && data.settings) || {};
+      const props = (data && data.scriptProperties) || {};
+
+      return `
+        <div class="section-card">
+          <div class="section-title">System Settings</div>
+          <div class="muted">ตั้งค่าผู้ใช้/สิทธิ์, file policy, LINE OA, Google Sheet/Drive, Telegram, และค่าระบบอื่นๆ</div>
+        </div>
+
+        <div class="split-2" style="margin-top:12px;">
+          <div class="section-card">
+            <div class="section-title">Update System Setting</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <input id="stKey" class="input" placeholder="setting_key" />
+              <input id="stValue" class="input" placeholder="value" />
+              <select id="stType" class="input">
+                <option value="text">text</option>
+                <option value="number">number</option>
+                <option value="boolean">boolean</option>
+                <option value="json">json</option>
+              </select>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                <input id="stSecret" type="checkbox" /> secret
+              </label>
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn" id="stUpdateBtn">Update Setting</button>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">Update Script Property</div>
+            <div style="display:grid;gap:8px;">
+              <input id="spKey" class="input" placeholder="e.g. LINE_CHANNEL_ACCESS_TOKEN" />
+              <input id="spValue" class="input" placeholder="new value" />
+              <button class="btn-soft" id="spUpdateBtn">Set Property</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-card" style="margin-top:14px;">
+          <div class="section-title">Connection Test</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="stConnTarget" class="input" style="max-width:240px;">
+              <option value="all">all</option>
+              <option value="sheets">sheets</option>
+              <option value="drive">drive</option>
+              <option value="line">line</option>
+              <option value="telegram">telegram</option>
+            </select>
+            <button class="btn-soft" id="stTestBtn">Run Test</button>
+          </div>
+          <pre style="margin-top:10px;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:10px;max-height:220px;overflow:auto;font-size:11px;">${UI.escapeHtml(JSON.stringify(this.lastTest || {}, null, 2))}</pre>
+        </div>
+
+        <div class="split-2" style="margin-top:14px;">
+          <div class="section-card">
+            <div class="section-title">System Settings Snapshot</div>
+            <div class="table-wrap" style="max-height:260px;">
+              <table class="data-table">
+                <thead><tr><th>Key</th><th>Value</th></tr></thead>
+                <tbody>
+                  ${Object.keys(settings)
+                    .map((key) => `<tr><td>${UI.escapeHtml(key)}</td><td>${UI.escapeHtml(typeof settings[key] === 'object' ? JSON.stringify(settings[key]) : settings[key])}</td></tr>`)
+                    .join('') || '<tr><td colspan="2" class="muted">No settings</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">Script Properties (Masked)</div>
+            <div class="table-wrap" style="max-height:260px;">
+              <table class="data-table">
+                <thead><tr><th>Key</th><th>Value</th></tr></thead>
+                <tbody>
+                  ${Object.keys(props)
+                    .map((key) => `<tr><td>${UI.escapeHtml(key)}</td><td>${UI.escapeHtml(props[key])}</td></tr>`)
+                    .join('') || '<tr><td colspan="2" class="muted">No properties</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      const updateBtn = root.querySelector('#stUpdateBtn');
+      if (updateBtn) {
+        updateBtn.addEventListener('click', () => this.updateSetting());
+      }
+
+      const propertyBtn = root.querySelector('#spUpdateBtn');
+      if (propertyBtn) {
+        propertyBtn.addEventListener('click', () => this.updateScriptProperty());
+      }
+
+      const testBtn = root.querySelector('#stTestBtn');
+      if (testBtn) {
+        testBtn.addEventListener('click', () => this.testConnection());
+      }
+
+      UI.iconRefresh();
+    }
+  };
+</script>

@@ -1,0 +1,217 @@
+﻿<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.richmenu = {
+    async init() {
+      await this.reload();
+    },
+
+    destroy() {},
+
+    async reload() {
+      const data = await Api.request('richmenu.list', {});
+      Store.update('richMenu', data);
+    },
+
+    async createFromForm() {
+      const name = document.getElementById('rmName').value.trim();
+      const size = document.getElementById('rmSize').value;
+      const width = Number(document.getElementById('rmWidth').value || 2500);
+      const height = Number(document.getElementById('rmHeight').value || 1686);
+
+      await Api.request('richmenu.create', {
+        name,
+        size,
+        width,
+        height
+      });
+
+      UI.toast('สร้าง Rich Menu แล้ว', 'Rich Menu');
+      await this.reload();
+    },
+
+    async uploadImage(richMenuId, file) {
+      const dataUrl = await this.toDataUrl(file);
+      await Api.request('richmenu.uploadImage', {
+        richMenuId,
+        fileName: file.name,
+        dataUrl
+      });
+      UI.toast('อัปโหลดภาพแล้ว', 'Rich Menu');
+      await this.reload();
+    },
+
+    async publish(richMenuId) {
+      await Api.request('richmenu.publish', { richMenuId });
+      UI.toast('Publish Rich Menu ไป LINE OA แล้ว', 'Rich Menu');
+      await this.reload();
+    },
+
+    async setDefault(richMenuId) {
+      await Api.request('richmenu.setDefault', { richMenuId });
+      UI.toast('ตั้งเป็น Default Rich Menu แล้ว', 'Rich Menu');
+      await this.reload();
+    },
+
+    async remove(id) {
+      await Api.request('richmenu.delete', { id });
+      UI.toast('ลบ Rich Menu แล้ว', 'Rich Menu');
+      await this.reload();
+    },
+
+    async saveActionsFromTextarea(richMenuId) {
+      const raw = document.getElementById(`rmActions_${richMenuId}`).value.trim();
+      if (!raw) {
+        UI.toast('กรอก JSON actions ก่อน', 'Rich Menu');
+        return;
+      }
+
+      let actions;
+      try {
+        actions = JSON.parse(raw);
+      } catch (error) {
+        UI.toast('JSON ไม่ถูกต้อง', 'Rich Menu');
+        return;
+      }
+
+      await Api.request('richmenu.saveActions', {
+        richMenuId,
+        actions
+      });
+
+      UI.toast('บันทึก Actions แล้ว', 'Rich Menu');
+      await this.reload();
+    },
+
+    toDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    },
+
+    render() {
+      const items = (Store.state.richMenu && Store.state.richMenu.items) || [];
+
+      return `
+        <div class="section-card">
+          <div class="section-title">Rich Menu Management</div>
+          <div class="muted">จัดการเทมเพลต rich menu, อัปโหลดภาพ, กำหนด action และ publish ไป LINE OA</div>
+        </div>
+
+        <div class="split-2" style="margin-top:12px;">
+          <div class="section-card">
+            <div class="section-title">Create Rich Menu</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <input id="rmName" class="input" placeholder="Menu Name" value="Main Rich Menu" />
+              <select id="rmSize" class="input">
+                <option value="large">Large</option>
+                <option value="compact">Compact</option>
+              </select>
+              <input id="rmWidth" class="input" type="number" value="2500" />
+              <input id="rmHeight" class="input" type="number" value="1686" />
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn" id="rmCreateBtn"><i data-lucide="plus"></i> Create</button>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">Action Template Example</div>
+            <div class="muted">ใช้ JSON array สำหรับ action area เช่น</div>
+            <pre style="font-size:11px;white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;padding:8px;border-radius:10px;">[
+  {
+    "bounds": {"x": 0, "y": 0, "width": 1250, "height": 843},
+    "actionType": "message",
+    "label": "โปรโมชั่น",
+    "data": {"text": "ดูโปรโมชั่น"}
+  }
+]</pre>
+          </div>
+        </div>
+
+        <div class="section-card" style="margin-top:14px;">
+          <div class="section-title">Rich Menu List</div>
+          <div style="display:grid;gap:10px;">
+            ${
+              items.length
+                ? items
+                    .map(
+                      (item) => `
+                  <div class="section-card" style="border-style:dashed;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                      <div>
+                        <div style="font-weight:700;">${UI.escapeHtml(item.name)}</div>
+                        <div class="muted">ID: ${UI.escapeHtml(item.id)} | LINE ID: ${UI.escapeHtml(item.lineRichMenuId || '-')}</div>
+                        <div class="muted">Size: ${UI.escapeHtml(item.width)} x ${UI.escapeHtml(item.height)} | Default: ${item.isDefault ? 'Yes' : 'No'}</div>
+                      </div>
+                      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;">
+                        <button class="btn-soft" data-rm-upload="${UI.escapeHtml(item.id)}">Upload Image</button>
+                        <button class="btn-soft" data-rm-publish="${UI.escapeHtml(item.id)}">Publish</button>
+                        <button class="btn-soft" data-rm-default="${UI.escapeHtml(item.id)}">Set Default</button>
+                        <button class="btn-danger" data-rm-delete="${UI.escapeHtml(item.id)}">Delete</button>
+                        <input type="file" id="rmFile_${UI.escapeHtml(item.id)}" style="display:none;" accept="image/*" />
+                      </div>
+                    </div>
+                    ${item.imageUrl ? `<div style="margin-top:10px;"><img src="${UI.escapeHtml(item.imageUrl)}" alt="rich-menu" style="max-width:260px;border-radius:8px;border:1px solid #e2e8f0;" /></div>` : ''}
+                    <div style="margin-top:8px;">
+                      <textarea id="rmActions_${UI.escapeHtml(item.id)}" class="composer-input" style="min-height:92px;" placeholder='Paste action JSON array here'>${UI.escapeHtml(JSON.stringify(item.actions || [], null, 2))}</textarea>
+                      <div style="margin-top:8px;display:flex;justify-content:flex-end;">
+                        <button class="btn-soft" data-rm-save-actions="${UI.escapeHtml(item.id)}">Save Actions</button>
+                      </div>
+                    </div>
+                  </div>
+                `
+                    )
+                    .join('')
+                : '<div class="muted">No rich menu records</div>'
+            }
+          </div>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      const createBtn = root.querySelector('#rmCreateBtn');
+      if (createBtn) {
+        createBtn.addEventListener('click', () => this.createFromForm());
+      }
+
+      root.querySelectorAll('[data-rm-upload]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-rm-upload');
+          const fileInput = document.getElementById(`rmFile_${id}`);
+          if (fileInput) {
+            fileInput.click();
+            fileInput.onchange = async () => {
+              const file = fileInput.files && fileInput.files[0];
+              if (file) {
+                await this.uploadImage(id, file);
+              }
+            };
+          }
+        });
+      });
+
+      root.querySelectorAll('[data-rm-publish]').forEach((btn) => {
+        btn.addEventListener('click', () => this.publish(btn.getAttribute('data-rm-publish')));
+      });
+
+      root.querySelectorAll('[data-rm-default]').forEach((btn) => {
+        btn.addEventListener('click', () => this.setDefault(btn.getAttribute('data-rm-default')));
+      });
+
+      root.querySelectorAll('[data-rm-delete]').forEach((btn) => {
+        btn.addEventListener('click', () => this.remove(btn.getAttribute('data-rm-delete')));
+      });
+
+      root.querySelectorAll('[data-rm-save-actions]').forEach((btn) => {
+        btn.addEventListener('click', () => this.saveActionsFromTextarea(btn.getAttribute('data-rm-save-actions')));
+      });
+
+      UI.iconRefresh();
+    }
+  };
+</script>

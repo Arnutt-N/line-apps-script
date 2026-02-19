@@ -1,0 +1,91 @@
+﻿<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.dashboard = {
+    async init() {
+      const data = await Api.request('dashboard.summary', {});
+      Store.update('dashboard', data);
+    },
+
+    destroy() {},
+
+    render() {
+      const dashboard = Store.state.dashboard;
+      if (!dashboard) {
+        return `
+          <div class="section-card">
+            <div class="section-title">Dashboard Monitoring</div>
+            <div class="skeleton" style="height:180px;"></div>
+          </div>
+        `;
+      }
+
+      const cards = dashboard.cards || [];
+      const trends = dashboard.trends || [];
+
+      return `
+        <div class="section-card">
+          <div class="section-title">Dashboard Monitoring System</div>
+          <div class="muted">อัปเดตล่าสุด: ${UI.formatDateTime(dashboard.generatedAt)}</div>
+        </div>
+
+        <div class="card-grid" style="margin-top:12px;">
+          ${cards
+            .map(
+              (card) => `
+            <div class="metric-card">
+              <div class="label">${UI.escapeHtml(card.label)}</div>
+              <div class="value">${UI.escapeHtml(card.value)}</div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+
+        <div class="section-card" style="margin-top:14px;">
+          <div class="section-title">Trend (Daily Metrics)</div>
+          <div class="table-wrap" style="max-height:320px; margin-top:10px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Active Chats</th>
+                  <th>Manual Chats</th>
+                  <th>Messages In</th>
+                  <th>Messages Out</th>
+                  <th>Unresolved</th>
+                  <th>Intent Hit Rate</th>
+                  <th>Avg First Response (sec)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${
+                  trends.length
+                    ? trends
+                        .map(
+                          (row) => `
+                    <tr>
+                      <td>${UI.escapeHtml(row.metric_date)}</td>
+                      <td>${UI.escapeHtml(row.active_chats)}</td>
+                      <td>${UI.escapeHtml(row.manual_chats)}</td>
+                      <td>${UI.escapeHtml(row.messages_in)}</td>
+                      <td>${UI.escapeHtml(row.messages_out)}</td>
+                      <td>${UI.escapeHtml(row.unresolved_chats)}</td>
+                      <td>${UI.escapeHtml(row.intent_hit_rate)}</td>
+                      <td>${UI.escapeHtml(row.avg_first_response_sec)}</td>
+                    </tr>
+                  `
+                        )
+                        .join('')
+                    : '<tr><td colspan="8" class="muted">No trend data</td></tr>'
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    },
+
+    bind() {}
+  };
+</script>

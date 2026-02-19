@@ -1,0 +1,61 @@
+﻿<script>
+  window.Store = {
+    state: {
+      page: window.__BOOTSTRAP__.page || 'dashboard',
+      standalonePage: window.__BOOTSTRAP__.standalonePage || '',
+      user: window.__BOOTSTRAP__.user || {},
+      loading: false,
+      dashboard: null,
+      chat: {
+        users: [],
+        selectedUser: null,
+        selectedRoom: null,
+        messages: [],
+        query: '',
+        usersPage: 1,
+        hasNewMessage: false,
+        mode: 'bot',
+        typing: false,
+        pollSince: '',
+        pollIntervalMs: 3000,
+        videoCallUrl: 'https://meet.google.com/new'
+      },
+      richMenu: { items: [] },
+      autoReply: { intents: [], keywords: [], responses: [], templates: [] },
+      templates: { items: [] },
+      histories: { friends: [], chats: [] },
+      liff: { items: [] },
+      settings: { data: null }
+    },
+    listeners: [],
+    set(nextPatch) {
+      this.state = {
+        ...this.state,
+        ...nextPatch
+      };
+      this.emit();
+    },
+    update(path, value) {
+      const keys = String(path).split('.');
+      const root = { ...this.state };
+      let ref = root;
+      for (let i = 0; i < keys.length - 1; i += 1) {
+        ref[keys[i]] = { ...ref[keys[i]] };
+        ref = ref[keys[i]];
+      }
+      ref[keys[keys.length - 1]] = value;
+      this.state = root;
+      this.emit();
+    },
+    subscribe(handler) {
+      this.listeners.push(handler);
+      return () => {
+        this.listeners = this.listeners.filter((x) => x !== handler);
+      };
+    },
+    emit() {
+      this.listeners.forEach((handler) => handler(this.state));
+    }
+  };
+</script>
+

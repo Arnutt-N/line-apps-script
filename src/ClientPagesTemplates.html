@@ -1,0 +1,178 @@
+﻿<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.templates = {
+    async init() {
+      await this.reload();
+    },
+
+    destroy() {},
+
+    async reload() {
+      const data = await Api.request('templates.list', {});
+      Store.update('templates', data);
+    },
+
+    async createTemplate() {
+      const name = document.getElementById('tplName').value.trim();
+      const category = document.getElementById('tplCategory').value;
+      const payloadText = document.getElementById('tplPayload').value.trim();
+
+      let payload;
+      try {
+        payload = JSON.parse(payloadText || '{}');
+      } catch (error) {
+        UI.toast('Payload JSON ไม่ถูกต้อง', 'Templates');
+        return;
+      }
+
+      await Api.request('templates.create', {
+        name,
+        category,
+        payload
+      });
+
+      UI.toast('สร้าง template แล้ว', 'Templates');
+      await this.reload();
+    },
+
+    async cloneTemplate(id) {
+      await Api.request('templates.clone', { id });
+      await this.reload();
+    },
+
+    async deleteTemplate(id) {
+      await Api.request('templates.delete', { id });
+      await this.reload();
+    },
+
+    async editTemplate(id) {
+      const row = (Store.state.templates.items || []).find((x) => x.id === id);
+      if (!row) {
+        return;
+      }
+
+      const name = prompt('Template name', row.name);
+      if (!name) {
+        return;
+      }
+      const category = prompt('Category', row.category);
+      if (!category) {
+        return;
+      }
+      const payloadRaw = prompt('Payload JSON', JSON.stringify(row.payload || {}, null, 2));
+      if (!payloadRaw) {
+        return;
+      }
+
+      let payload;
+      try {
+        payload = JSON.parse(payloadRaw);
+      } catch (error) {
+        UI.toast('Payload JSON ไม่ถูกต้อง', 'Templates');
+        return;
+      }
+
+      await Api.request('templates.update', {
+        id,
+        name,
+        category,
+        payload
+      });
+
+      await this.reload();
+    },
+
+    render() {
+      const templates = (Store.state.templates && Store.state.templates.items) || [];
+
+      return `
+        <div class="section-card">
+          <div class="section-title">Object Templates</div>
+          <div class="muted">จัดการ template message ทุกชนิด: text, sticker, image, video, audio, location, imagemap, template, flex, quick reply</div>
+        </div>
+
+        <div class="split-2" style="margin-top:12px;">
+          <div class="section-card">
+            <div class="section-title">Create Template</div>
+            <div style="display:grid;gap:8px;">
+              <input id="tplName" class="input" placeholder="Template Name" />
+              <select id="tplCategory" class="input">
+                <option value="object">object</option>
+                <option value="intent_template">intent_template</option>
+              </select>
+              <textarea id="tplPayload" class="composer-input" style="min-height:120px;" placeholder='{"type":"text","text":"hello"}'></textarea>
+              <button class="btn" id="tplCreateBtn"><i data-lucide="plus"></i> Create</button>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">Supported Message Types</div>
+            <div class="muted">Text, Text(v2), Sticker, Image, Video, Audio, Location, Coupon(Flex), Imagemap, Template(Buttons/Confirm/Carousel/Image Carousel), Flex, Quick Reply</div>
+          </div>
+        </div>
+
+        <div class="section-card" style="margin-top:14px;">
+          <div class="section-title">Template List</div>
+          <div class="table-wrap" style="max-height:460px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Payload</th>
+                  <th>System</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${
+                  templates.length
+                    ? templates
+                        .map(
+                          (tpl) => `
+                      <tr>
+                        <td>${UI.escapeHtml(tpl.name)}</td>
+                        <td>${UI.escapeHtml(tpl.category)}</td>
+                        <td><pre style="margin:0;white-space:pre-wrap;font-size:11px;">${UI.escapeHtml(JSON.stringify(tpl.payload || {}, null, 2))}</pre></td>
+                        <td>${tpl.isSystem ? 'Yes' : 'No'}</td>
+                        <td>
+                          <button class="btn-soft" data-tpl-edit="${UI.escapeHtml(tpl.id)}">Edit</button>
+                          <button class="btn-soft" data-tpl-clone="${UI.escapeHtml(tpl.id)}">Clone</button>
+                          <button class="btn-danger" data-tpl-delete="${UI.escapeHtml(tpl.id)}">Delete</button>
+                        </td>
+                      </tr>
+                    `
+                        )
+                        .join('')
+                    : '<tr><td colspan="5" class="muted">No templates</td></tr>'
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      const createBtn = root.querySelector('#tplCreateBtn');
+      if (createBtn) {
+        createBtn.addEventListener('click', () => this.createTemplate());
+      }
+
+      root.querySelectorAll('[data-tpl-edit]').forEach((btn) => {
+        btn.addEventListener('click', () => this.editTemplate(btn.getAttribute('data-tpl-edit')));
+      });
+
+      root.querySelectorAll('[data-tpl-clone]').forEach((btn) => {
+        btn.addEventListener('click', () => this.cloneTemplate(btn.getAttribute('data-tpl-clone')));
+      });
+
+      root.querySelectorAll('[data-tpl-delete]').forEach((btn) => {
+        btn.addEventListener('click', () => this.deleteTemplate(btn.getAttribute('data-tpl-delete')));
+      });
+
+      UI.iconRefresh();
+    }
+  };
+</script>

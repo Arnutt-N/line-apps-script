@@ -1,0 +1,181 @@
+﻿<script>
+  window.AppClient = {
+    navItems: [
+      { key: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+      { key: 'richmenu', label: 'Rich Menu', icon: 'gallery-vertical-end' },
+      { key: 'autoreply', label: 'Auto Replies', icon: 'message-circle' },
+      { key: 'templates', label: 'Object Templates', icon: 'blocks' },
+      { key: 'histories', label: 'Histories', icon: 'history' },
+      { key: 'liff', label: 'LIFF Management', icon: 'forms' },
+      { key: 'settings', label: 'Settings', icon: 'settings' }
+    ],
+    currentModule: null,
+
+    async boot() {
+      if (Store.state.standalonePage === 'chat') {
+        await this.activatePage('chat');
+      } else {
+        await this.activatePage(Store.state.page || 'dashboard');
+      }
+
+      Store.subscribe(() => {
+        this.render();
+      });
+
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          UI.setTitleBlink(false);
+        }
+      });
+    },
+
+    async activatePage(pageKey) {
+      const page = pageKey || 'dashboard';
+      if (this.currentModule && typeof this.currentModule.destroy === 'function') {
+        this.currentModule.destroy();
+      }
+      this.currentModule = null;
+
+      Store.update('page', page);
+      const module = window.Pages[page];
+      if (!module) {
+        throw new Error(`Missing page module: ${page}`);
+      }
+
+      this.currentModule = module;
+      if (typeof module.init === 'function') {
+        await module.init();
+      }
+
+      this.render();
+    },
+
+    render() {
+      const root = document.getElementById('appRoot');
+      if (!root || !this.currentModule) {
+        return;
+      }
+
+      const state = Store.state;
+      const page = state.page;
+      const titleMap = {
+        dashboard: 'Dashboard Monitoring',
+        chat: 'Live Chat',
+        richmenu: 'Rich Menu',
+        autoreply: 'Auto Replies',
+        templates: 'Object Templates',
+        histories: 'Friends & Chat Histories',
+        liff: 'LIFF Management',
+        settings: 'System Settings'
+      };
+      const pageTitle = titleMap[page] || page;
+
+      const content = typeof this.currentModule.render === 'function' ? this.currentModule.render() : '';
+
+      if (state.standalonePage === 'chat') {
+        root.innerHTML = `
+          <div class="content-wrap" style="padding:14px;">
+            <div class="topbar">
+              <div>
+                <div style="font-size:18px;font-weight:700;">Live Chat (Standalone)</div>
+                <div class="muted">เปิดแยกหน้าเพื่อรองรับเจ้าหน้าที่หลายคนพร้อมกัน</div>
+              </div>
+              <div class="muted">${UI.escapeHtml(state.user.displayName || state.user.email || 'Admin')}</div>
+            </div>
+            <div class="main-panel">${content}</div>
+          </div>
+        `;
+
+        if (typeof this.currentModule.bind === 'function') {
+          this.currentModule.bind(root);
+        }
+        UI.iconRefresh();
+        return;
+      }
+
+      root.innerHTML = `
+        <div class="app-shell">
+          <aside class="sidebar">
+            <div class="sidebar-top">
+              <div class="brand-chip"><i data-lucide="sparkles"></i></div>
+              <div class="brand-text">
+                <div style="font-size:14px;font-weight:700;">LINE OA Platform</div>
+                <div class="muted" style="color:#94a3b8;">Tech Startup Admin</div>
+              </div>
+            </div>
+            <nav class="sidebar-nav">
+              ${this.navItems
+                .map(
+                  (item) => `
+                <button class="nav-btn ${page === item.key ? 'active' : ''}" data-nav-page="${item.key}">
+                  <i data-lucide="${item.icon}"></i>
+                  <span class="nav-label">${item.label}</span>
+                </button>
+              `
+                )
+                .join('')}
+              <a class="nav-btn" href="${UI.escapeHtml(window.__BOOTSTRAP__.baseUrl)}?page=chat" target="_blank" rel="noopener">
+                <i data-lucide="panel-right-open"></i>
+                <span class="nav-label">Live Chat (New Tab)</span>
+              </a>
+            </nav>
+            <div class="sidebar-bottom">
+              <div class="role-info">${UI.escapeHtml(state.user.displayName || state.user.email || '')}</div>
+              <div class="role-info">Role: ${UI.escapeHtml(state.user.role || '-')}</div>
+            </div>
+          </aside>
+
+          <main class="content-wrap">
+            <div class="topbar">
+              <div>
+                <div style="font-size:18px;font-weight:700;">${UI.escapeHtml(pageTitle)}</div>
+                <div class="muted">Premium UX/UI with reusable components</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span class="muted">${UI.escapeHtml(new Date().toLocaleString('th-TH'))}</span>
+                <button class="btn-soft" id="globalRefreshBtn"><i data-lucide="refresh-cw"></i> Refresh</button>
+              </div>
+            </div>
+            <div class="main-panel">${content}</div>
+          </main>
+        </div>
+      `;
+
+      root.querySelectorAll('[data-nav-page]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = btn.getAttribute('data-nav-page');
+          this.activatePage(key);
+        });
+      });
+
+      const refreshBtn = root.querySelector('#globalRefreshBtn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => this.activatePage(Store.state.page));
+      }
+
+      if (typeof this.currentModule.bind === 'function') {
+        this.currentModule.bind(root);
+      }
+
+      UI.iconRefresh();
+    }
+  };
+
+  (async function () {
+    try {
+      await window.AppClient.boot();
+    } catch (error) {
+      const root = document.getElementById('appRoot');
+      if (root) {
+        root.innerHTML = `
+          <div style="padding:24px;max-width:880px;margin:40px auto;background:#fff;border:1px solid #fee2e2;border-radius:12px;">
+            <h2 style="margin-top:0;color:#991b1b;">Application Error</h2>
+            <pre style="white-space:pre-wrap;color:#7f1d1d;">${UI.escapeHtml(error.message || String(error))}</pre>
+            <p style="color:#64748b;">ตรวจสอบว่าได้รัน setupInitialize() และตั้งค่า Script Properties ครบหรือไม่</p>
+          </div>
+        `;
+      }
+    }
+  })();
+</script>
+
