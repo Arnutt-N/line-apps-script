@@ -2,7 +2,7 @@
 
 App.SheetsRepo = (function () {
   var SCHEMAS = {
-    users: ['id', 'line_user_id', 'display_name', 'picture_url', 'status_message', 'language', 'followed_at', 'unfollowed_at', 'readded_count', 'last_seen_at', 'tags', 'notes', 'is_blocked', 'created_at', 'updated_at'],
+    users: ['id', 'line_user_id', 'display_name', 'picture_url', 'status_message', 'language', 'followed_at', 'unfollowed_at', 'readded_count', 'last_seen_at', 'tags', 'notes', 'is_blocked', 'current_state', 'created_at', 'updated_at'],
     chat_rooms: ['id', 'user_id', 'mode', 'assigned_admin', 'last_message_at', 'last_message_text', 'unread_count', 'status', 'created_at', 'updated_at'],
     chat_messages: ['id', 'room_id', 'user_id', 'sender_type', 'sender_id', 'message_type', 'text', 'payload_json', 'file_drive_id', 'file_url', 'status', 'is_read', 'created_at', 'updated_at'],
     friend_histories: ['id', 'user_id', 'event_type', 'source', 'ref_code', 'nth_add', 'event_at', 'payload_json', 'created_at', 'updated_at'],
@@ -10,8 +10,11 @@ App.SheetsRepo = (function () {
     intent_keywords: ['id', 'intent_id', 'keyword', 'match_type', 'weight', 'is_active', 'created_at', 'updated_at'],
     intent_responses: ['id', 'intent_id', 'response_type', 'template_id', 'response_json', 'is_active', 'created_at', 'updated_at'],
     response_templates: ['id', 'name', 'category', 'payload_json', 'is_system', 'is_active', 'created_at', 'updated_at'],
-    rich_menus: ['id', 'name', 'size', 'width', 'height', 'image_drive_id', 'image_url', 'line_rich_menu_id', 'is_default', 'is_active', 'created_at', 'updated_at'],
+    object_templates: ['id', 'variable_key', 'name', 'message_type', 'payload_json', 'description', 'is_system', 'is_active', 'created_at', 'updated_at'],
+    template_variables: ['id', 'var_key', 'var_name', 'var_value', 'description', 'is_system', 'is_active', 'created_at', 'updated_at'],
+    rich_menus: ['id', 'name', 'size', 'width', 'height', 'image_drive_id', 'image_url', 'line_rich_menu_id', 'is_default', 'is_active', 'pack_id', 'created_at', 'updated_at'],
     rich_menu_actions: ['id', 'rich_menu_id', 'bounds_json', 'action_type', 'label', 'data_json', 'is_active', 'created_at', 'updated_at'],
+    rich_menu_packs: ['id', 'pack_key', 'name', 'vertical', 'description', 'cover_image_url', 'is_current', 'is_system', 'is_active', 'created_at', 'updated_at'],
     liff_forms: ['id', 'name', 'liff_id', 'status', 'schema_json', 'published_at', 'created_at', 'updated_at'],
     admin_users: ['id', 'email', 'display_name', 'role', 'status', 'last_login_at', 'created_at', 'updated_at'],
     roles: ['id', 'role_key', 'role_name', 'description', 'is_system', 'created_at', 'updated_at'],

@@ -10,8 +10,14 @@ App.Setup = (function () {
 
   var DEFAULT_PERMISSIONS = {
     owner: ['*'],
-    admin: ['dashboard.view', 'chat.view', 'chat.send', 'chat.manage', 'richmenu.manage', 'autoreply.manage', 'templates.manage', 'histories.view', 'liff.manage', 'settings.manage', 'settings.admin'],
-    agent: ['dashboard.view', 'chat.view', 'chat.send', 'histories.view'],
+    admin: [
+      'dashboard.view', 'chat.view', 'chat.send', 'chat.manage',
+      'richmenu.manage', 'autoreply.manage', 'templates.manage',
+      'histories.view', 'liff.manage', 'settings.manage', 'settings.admin',
+      'templates.object.manage', 'templates.variables.manage',
+      'richmenu.pack.manage', 'chat.escalate'
+    ],
+    agent: ['dashboard.view', 'chat.view', 'chat.send', 'histories.view', 'chat.escalate'],
     viewer: ['dashboard.view', 'histories.view']
   };
 
@@ -26,6 +32,39 @@ App.Setup = (function () {
     { setting_key: 'rate_limit_per_minute', setting_value: '60', setting_type: 'number', is_secret: 'false' }
   ];
 
+  var DEFAULT_RICH_MENU_PACKS = [
+    {
+      pack_key: 'restaurant',
+      name: 'ร้านอาหาร Demo',
+      vertical: 'restaurant',
+      description: 'เมนูวันนี้, โปรโมชั่น, สั่งอาหาร, จองโต๊ะ, ร้านอยู่ไหน, คุยกับคน',
+      cover_image_url: '',
+      is_current: 'false',
+      is_system: 'true',
+      is_active: 'true'
+    },
+    {
+      pack_key: 'clothing',
+      name: 'ร้านขายเสื้อผ้า Demo',
+      vertical: 'clothing',
+      description: 'คอลเลคชั่นใหม่, โปรโมชั่น, สั่งของ, ไซส์, ที่ตั้งร้าน, คุยกับคน',
+      cover_image_url: '',
+      is_current: 'false',
+      is_system: 'true',
+      is_active: 'true'
+    },
+    {
+      pack_key: 'school',
+      name: 'โรงเรียน Demo',
+      vertical: 'school',
+      description: 'ตารางเรียน, ค่าเทอม, ติดต่อครู, กิจกรรม, แผนที่โรงเรียน, คุยกับคน',
+      cover_image_url: '',
+      is_current: 'false',
+      is_system: 'true',
+      is_active: 'true'
+    }
+  ];
+
   function initialize() {
     App.SheetsRepo.ensureAll();
     seedRoles_();
@@ -33,12 +72,22 @@ App.Setup = (function () {
     var seededAdmin = seedAdmin_();
     seedSettings_();
     seedTemplates_();
+    seedRichMenuPacks_();
 
     return {
       ok: true,
       initializedAt: App.Utils.nowIso(),
       seededAdmin: seededAdmin
     };
+  }
+
+  function seedRichMenuPacks_() {
+    DEFAULT_RICH_MENU_PACKS.forEach(function (pack) {
+      var found = App.SheetsRepo.findOne('rich_menu_packs', 'pack_key', pack.pack_key);
+      if (!found) {
+        App.SheetsRepo.insert('rich_menu_packs', pack);
+      }
+    });
   }
 
   function seedRoles_() {
