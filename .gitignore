@@ -1,0 +1,24 @@
+# Git Bash / Windows crash dumps
+*.stackdump
+*.dmp
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local environment
+.env
+.env.local
+.clasprc.json
+
+# Local Claude settings (keep shared .claude/PRPs/ tracked)
+.claude/settings.local.json
+.claude/cache/
+.claude/logs/
