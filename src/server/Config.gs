@@ -35,6 +35,10 @@ App.Config = (function () {
     return get('LINE_CHANNEL_SECRET', '');
   }
 
+  function getLineRequireSignature() {
+    return App.Utils.toBool(get('LINE_REQUIRE_SIGNATURE', 'false'));
+  }
+
   function getLineOaId() {
     return get('LINE_OA_ID', '');
   }
@@ -64,6 +68,7 @@ App.Config = (function () {
     getDriveRootFolderId: getDriveRootFolderId,
     getLineChannelAccessToken: getLineChannelAccessToken,
     getLineChannelSecret: getLineChannelSecret,
+    getLineRequireSignature: getLineRequireSignature,
     getLineOaId: getLineOaId,
     getTelegramBotToken: getTelegramBotToken,
     getTelegramChatId: getTelegramChatId,

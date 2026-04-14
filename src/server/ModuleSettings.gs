@@ -89,6 +89,7 @@ App.Settings = (function () {
   function testConnection(payload) {
     payload = payload || {};
     var target = payload.target || 'all';
+    var requireSig = App.Config.getLineRequireSignature();
 
     var results = {
       sheets: null,
@@ -117,9 +118,19 @@ App.Settings = (function () {
 
     if (target === 'all' || target === 'line') {
       var lineToken = App.Config.getLineChannelAccessToken();
+      var lineSecret = App.Config.getLineChannelSecret();
       results.line = {
-        ok: !!lineToken,
-        detail: lineToken ? 'LINE access token configured' : 'LINE token missing'
+        ok: !!lineToken && (!requireSig || !!lineSecret),
+        detail: lineToken ? 'LINE access token configured' : 'LINE token missing',
+        channelSecretConfigured: !!lineSecret,
+        signatureRequired: requireSig,
+        webhookCompatibility: requireSig ? {
+          ok: false,
+          detail: 'Direct Google Apps Script web apps cannot read X-Line-Signature. Disable LINE_REQUIRE_SIGNATURE or place a proxy in front of GAS.'
+        } : {
+          ok: true,
+          detail: 'Direct Google Apps Script webhook mode. LINE signature verification is disabled at the GAS layer.'
+        }
       };
     }
 

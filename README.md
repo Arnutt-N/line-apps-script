@@ -30,6 +30,7 @@ Modern LINE OA admin platform with Google Apps Script + Google Sheets + Google D
 - Admin auth uses Google account email allowlist (`admin_users` sheet).
 - Live Chat menu can open standalone page in new tab (`?page=chat`).
 - Polling interval can be adjusted in Settings.
+- Direct Google Apps Script web apps can't read the `X-Line-Signature` header. Keep `LINE_REQUIRE_SIGNATURE=false` unless you verify LINE signatures in an external proxy before forwarding to GAS.
 
 ## Documentation
 - Thai docs index: `DOCS_INDEX_TH.md`

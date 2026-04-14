@@ -72,8 +72,12 @@
 ## 6) Webhook and API Security
 
 ## 6.1 LINE Webhook
-- ต้องเปิด `LINE_REQUIRE_SIGNATURE=true` ใน production
-- ตรวจสอบ `x-line-signature` ทุกครั้ง
+- ถ้ามี proxy หน้า Google Apps Script ต้องตรวจสอบ `x-line-signature` ที่ proxy ทุกครั้ง
+- ถ้ารับ webhook เข้า Google Apps Script Web App ตรงๆ ห้ามตั้ง `LINE_REQUIRE_SIGNATURE=true`
+- สำหรับ direct GAS deployment ให้ลดความเสี่ยงด้วยการ:
+  - ใช้ URL เฉพาะ production เท่านั้น
+  - จำกัดการเข้าถึง Script/Deployment ให้ถูกบัญชี
+  - monitor webhook failures และ rotate secret/token ตามรอบ
 
 ## 6.2 Input Validation
 - sanitize ข้อความและ payload ก่อนเก็บ/ประมวลผล
@@ -193,7 +197,8 @@
 ## 15) Security Checklist ก่อน Go-live
 
 - [ ] Production แยกจาก staging ชัดเจน
-- [ ] `LINE_REQUIRE_SIGNATURE=true`
+- [ ] ถ้าใช้ proxy: verify `x-line-signature` ก่อน forward
+- [ ] ถ้าเข้า GAS ตรง: `LINE_REQUIRE_SIGNATURE=false`
 - [ ] Secrets อยู่ใน Script Properties เท่านั้น
 - [ ] Admin RBAC ตรวจครบ
 - [ ] Backup policy เปิดใช้งาน

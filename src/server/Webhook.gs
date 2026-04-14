@@ -30,13 +30,23 @@ App.Webhook = (function () {
 
   function verifySignatureIfPossible_(e, bodyText) {
     var secret = App.Config.getLineChannelSecret();
-    var requireSig = App.Utils.toBool(App.Config.get('LINE_REQUIRE_SIGNATURE', 'false'));
+    var requireSig = App.Config.getLineRequireSignature();
     var headers = App.Utils.headersToMap(e && e.headers ? e.headers : null);
     var signature = headers['x-line-signature'];
 
-    if (!secret || !signature) {
+    if (!secret) {
       if (requireSig) {
-        throw new Error('Cannot verify LINE signature in this environment');
+        throw new Error('LINE_CHANNEL_SECRET is missing while LINE_REQUIRE_SIGNATURE=true');
+      }
+      return;
+    }
+
+    if (!signature) {
+      if (requireSig) {
+        throw new Error(
+          'LINE signature verification is enabled, but Google Apps Script web apps do not expose X-Line-Signature headers. ' +
+          'Set LINE_REQUIRE_SIGNATURE=false for direct GAS webhooks, or verify the signature in a proxy before forwarding to GAS.'
+        );
       }
       return;
     }

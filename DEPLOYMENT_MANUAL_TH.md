@@ -164,7 +164,9 @@ clasp create --type standalone --title "LINE OA Platform"
   - `true` = ตั้งไฟล์ที่อัปโหลดให้เปิดแบบ Anyone with link (เหมาะกับการส่ง media link ให้ LINE)
   - `false` = ไม่เปิด share อัตโนมัติ
 
-> Production แนะนำ `LINE_REQUIRE_SIGNATURE=true`
+> ถ้าใช้ Web App ของ Google Apps Script รับ webhook ตรงๆ ต้องตั้ง `LINE_REQUIRE_SIGNATURE=false`
+> เพราะ Apps Script web app อ่าน header `X-Line-Signature` ไม่ได้
+> ถ้าต้องการบังคับตรวจ signature ใน production ให้มี proxy ภายนอกเป็นคน verify ก่อน แล้วค่อย forward request เข้า GAS
 
 ---
 
@@ -255,6 +257,7 @@ clasp pull
 - Deploy URL ถูกต้องหรือไม่ (deployment ล่าสุด)
 - Script Properties ของ LINE ถูกต้อง
 - Apps Script ไม่มี error ใน Executions
+- ถ้าตั้ง `LINE_REQUIRE_SIGNATURE=true` และยิงเข้า GAS ตรงๆ ให้เปลี่ยนเป็น `false` ก่อน เพราะ GAS อ่าน `X-Line-Signature` ไม่ได้
 
 ---
 
@@ -337,13 +340,14 @@ clasp pull
 
 ## 14) Security Hardening สำหรับ Production
 
-1. ตั้ง `LINE_REQUIRE_SIGNATURE=true`
-2. จำกัดผู้ใช้ admin ผ่าน `admin_users` + role matrix
-3. ห้ามใส่ token ลงใน sheet ปกติ ให้เก็บใน Script Properties
-4. ตรวจสอบ `audit_logs` เป็นประจำ
-5. ตั้งค่า `DRIVE_PUBLIC_SHARING` ตาม policy จริงขององค์กร
-6. แยกบัญชี deploy production และ staging
-7. ตั้ง retention policy ข้อมูลแชตตามข้อกฎหมาย
+1. ถ้าใช้ proxy หน้า GAS ให้ verify `X-Line-Signature` ที่ proxy
+2. ถ้ารับ webhook เข้า GAS ตรงๆ ให้ใช้ `LINE_REQUIRE_SIGNATURE=false`
+3. จำกัดผู้ใช้ admin ผ่าน `admin_users` + role matrix
+4. ห้ามใส่ token ลงใน sheet ปกติ ให้เก็บใน Script Properties
+5. ตรวจสอบ `audit_logs` เป็นประจำ
+6. ตั้งค่า `DRIVE_PUBLIC_SHARING` ตาม policy จริงขององค์กร
+7. แยกบัญชี deploy production และ staging
+8. ตั้ง retention policy ข้อมูลแชตตามข้อกฎหมาย
 
 ---
 
@@ -364,11 +368,13 @@ clasp pull
 - `SPREADSHEET_ID` ผิด
 - สิทธิ์ไม่พอ
 - error ใน webhook handler
+- ตั้ง `LINE_REQUIRE_SIGNATURE=true` กับ direct GAS webhook
 
 วิธีแก้:
 1. เช็ค Script Properties
 2. เช็ค Apps Script Executions logs
 3. ทดสอบ `settings.testConnection`
+4. ถ้าไม่ได้ใช้ proxy verify signature ให้ตั้ง `LINE_REQUIRE_SIGNATURE=false`
 
 ## ปัญหา: LINE ส่งรูป/วิดีโอไม่ขึ้น
 สาเหตุ:
