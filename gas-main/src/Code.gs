@@ -330,17 +330,45 @@ function handleMessageEvent_(event, sourceId, userId, profile) {
       return { ok: true, type: 'message', route: 'cancel' };
 
     default:
+      var intentMatch = safeFindIntent_(message.text);
+      if (intentMatch) {
+        var intentMessages = buildLineMessages_(intentMatch);
+        if (intentMessages.length > 0) {
+          maybeShowLoading_(userId);
+          replyMessages_(event.replyToken, intentMessages);
+          safeLogConversation_(sourceId, message.text, intentMessages, profile);
+          return { ok: true, type: 'message', route: 'intent-v2', replyCount: intentMessages.length };
+        }
+      }
+
       result = checkIntentAndGetResponse(message.text);
       if (!result.shouldReply) {
-        logConversation(sourceId, message.text, result, profile.displayName, profile.pictureUrl);
+        safeLogConversation_(sourceId, message.text, result, profile);
         return { ok: true, type: 'message', route: 'no-action' };
       }
 
       messages = buildMessagesForResult_(result);
       maybeShowLoading_(userId);
       replyMessages_(event.replyToken, messages);
-      logConversation(sourceId, message.text, result, profile.displayName, profile.pictureUrl);
-      return { ok: true, type: 'message', route: 'intent', replyCount: messages.length };
+      safeLogConversation_(sourceId, message.text, result, profile);
+      return { ok: true, type: 'message', route: 'intent-legacy', replyCount: messages.length };
+  }
+}
+
+function safeFindIntent_(text) {
+  try {
+    return findIntent_(text);
+  } catch (error) {
+    console.log('findIntent_ failed (falling back to legacy): ' + error);
+    return null;
+  }
+}
+
+function safeLogConversation_(sourceId, userMsg, botResponse, profile) {
+  try {
+    logConversation(sourceId, userMsg, botResponse, profile.displayName, profile.pictureUrl);
+  } catch (error) {
+    console.log('logConversation failed (reply already sent): ' + error);
   }
 }
 
