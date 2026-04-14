@@ -336,9 +336,10 @@ App.Chat = (function () {
       if (App.Config.getLineChannelAccessToken()) {
         if (replyToken) {
           try {
-            App.LineApi.showLoading(inbound.user.line_user_id, 5000);
+            App.LineApi.showLoading(inbound.user.line_user_id, 5);
           } catch (loadingError) {
-            // ignore loading indicator errors
+            // Loading indicator is cosmetic; log and continue so the reply still lands.
+            Logger.log('showLoading failed: ' + loadingError);
           }
           App.LineApi.replyMessage(replyToken, replies);
         } else {

@@ -92,10 +92,11 @@ App.LineApi = (function () {
     return request_('delete', '/richmenu/' + encodeURIComponent(richMenuId), null).data;
   }
 
-  function showLoading(chatId, duration) {
+  function showLoading(chatId, loadingSeconds) {
+    // LINE API: value is seconds (5..60 in increments of 5). Default 20 matches LINE's own default.
     return request_('post', '/chat/loading/start', {
       chatId: chatId,
-      duration: Number(duration || 5000)
+      loadingSeconds: Number(loadingSeconds || 20)
     }).data;
   }
 
