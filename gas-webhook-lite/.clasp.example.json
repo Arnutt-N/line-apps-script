@@ -1,0 +1,15 @@
+{
+  "scriptId": "PASTE_NEW_LIGHT_WEBHOOK_SCRIPT_ID_HERE",
+  "rootDir": "src",
+  "scriptExtensions": [
+    ".js",
+    ".gs"
+  ],
+  "htmlExtensions": [
+    ".html"
+  ],
+  "jsonExtensions": [
+    ".json"
+  ],
+  "skipSubdirectories": false
+}
