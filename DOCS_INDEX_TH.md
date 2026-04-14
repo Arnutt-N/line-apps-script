@@ -13,6 +13,7 @@
 | `DOCS_INDEX_TH.md` | สารบัญเอกสารกลาง | ใช้หาเอกสารอย่างรวดเร็ว |
 | `DOCS_CHANGELOG_TH.md` | ประวัติการเปลี่ยนแปลงเอกสารทั้งหมด | ใช้ audit/doc governance |
 | `DEPLOYMENT_MANUAL_TH.md` | คู่มือ deploy แบบละเอียด end-to-end | ตั้งระบบครั้งแรกหรือย้ายระบบ |
+| `CLOUDFLARE_WEBHOOK_PROXY_TH.md` | คู่มือใช้ Cloudflare Worker เป็น webhook proxy หน้า GAS | เมื่อ LINE verify webhook ไม่ผ่านเพราะ `302 Found` |
 | `DEPLOYMENT_STAGING_TH.md` | ขั้นตอน staging -> production | ทุก release ที่ขึ้น production |
 | `OPERATIONS_SOP_TH.md` | SOP งานประจำของทีมปฏิบัติการ | ใช้งานรายวันของ ops/support |
 | `CHECKLIST_DAILY_TH.md` | เช็กลิสต์หน้างานรายกะ | ใช้ในแต่ละกะจริง |
@@ -35,7 +36,8 @@
 2. `DOCS_INDEX_TH.md`
 3. `ARCHITECTURE.md`
 4. `DEPLOYMENT_MANUAL_TH.md`
-5. `SECURITY_BASELINE_TH.md`
+5. `CLOUDFLARE_WEBHOOK_PROXY_TH.md` (ถ้าใช้ LINE webhook ผ่าน proxy)
+6. `SECURITY_BASELINE_TH.md`
 
 ## 2.2 สำหรับทีมปล่อยงาน (Release Team)
 1. `DEPLOYMENT_STAGING_TH.md`
@@ -115,6 +117,7 @@
 ## 6) Quick Links
 
 - Deploy ครั้งแรก: `DEPLOYMENT_MANUAL_TH.md`
+- แก้ LINE webhook `302 Found`: `CLOUDFLARE_WEBHOOK_PROXY_TH.md`
 - ปล่อยขึ้น production: `DEPLOYMENT_STAGING_TH.md`
 - งานกะรายวัน: `CHECKLIST_DAILY_TH.md`
 - SOP ย่อพร้อมพิมพ์: `SOP_PRINT_PACK_TH.md`
@@ -135,6 +138,7 @@
 - `2026-02-19`: เพิ่ม onboarding 30 วัน และ training plan chat agent
 - `2026-02-19`: เพิ่ม docs changelog และ SOP print pack
 - `2026-02-19`: เพิ่ม role-based checklists และ KPI dashboard guide
+- `2026-04-14`: เพิ่มคู่มือ Cloudflare webhook proxy และอัปเดต docs ที่เกี่ยวข้อง
 
 ---
 

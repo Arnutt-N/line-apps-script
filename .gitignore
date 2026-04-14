@@ -16,7 +16,12 @@ desktop.ini
 # Local environment
 .env
 .env.local
+.dev.vars
 .clasprc.json
+
+# Node / Cloudflare Workers
+node_modules/
+.wrangler/
 
 # Local Claude settings (keep shared .claude/PRPs/ tracked)
 .claude/settings.local.json

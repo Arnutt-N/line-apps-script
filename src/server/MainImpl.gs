@@ -30,13 +30,13 @@ App.Main = (function () {
     var params = e.parameter || {};
     var route = (params.route || 'api').toLowerCase();
     var body = App.Utils.readJsonBody(e);
+    var webhookPayload = extractWebhookPayload_(body);
 
     // Auto-detect LINE webhook: body has `events` array AND a `destination` string.
     // GAS strips query string on sandbox redirect, so `?route=webhook` may be lost.
-    // The `destination` check narrows the heuristic to real LINE payloads — any API
-    // caller passing `{events: [...]}` without `destination` still goes to apiDispatch.
+    // When a proxy is in front of GAS, the body may be wrapped inside `lineWebhook`.
     var isWebhook = route === 'webhook' ||
-      (body && Array.isArray(body.events) && typeof body.destination === 'string');
+      (webhookPayload && Array.isArray(webhookPayload.events) && typeof webhookPayload.destination === 'string');
 
     if (isWebhook) {
       try {
@@ -72,6 +72,13 @@ App.Main = (function () {
       data: result,
       serverTime: App.Utils.nowIso()
     };
+  }
+
+  function extractWebhookPayload_(body) {
+    if (body && body.lineWebhook && typeof body.lineWebhook === 'object') {
+      return body.lineWebhook;
+    }
+    return body;
   }
 
   

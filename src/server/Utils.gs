@@ -67,6 +67,23 @@ App.Utils = (function () {
     return Utilities.base64Encode(sig);
   }
 
+  function constantTimeEquals(left, right) {
+    left = String(left == null ? '' : left);
+    right = String(right == null ? '' : right);
+
+    var maxLength = Math.max(left.length, right.length);
+    var mismatch = left.length === right.length ? 0 : 1;
+    var i;
+
+    for (i = 0; i < maxLength; i += 1) {
+      var leftCode = i < left.length ? left.charCodeAt(i) : 0;
+      var rightCode = i < right.length ? right.charCodeAt(i) : 0;
+      mismatch |= (leftCode ^ rightCode);
+    }
+
+    return mismatch === 0;
+  }
+
   function maskSecret(value) {
     if (!value) {
       return '';
@@ -100,6 +117,7 @@ App.Utils = (function () {
     jsonOutput: jsonOutput,
     headersToMap: headersToMap,
     hmacSha256Base64: hmacSha256Base64,
+    constantTimeEquals: constantTimeEquals,
     maskSecret: maskSecret,
     paginate: paginate
   };

@@ -3,10 +3,11 @@
 App.Webhook = (function () {
   function handle(e) {
     var bodyText = e && e.postData ? (e.postData.contents || '{}') : '{}';
-    var payload = App.Utils.parseJson(bodyText, {});
+    var envelope = App.Utils.parseJson(bodyText, {});
+    var payload = extractLineWebhookPayload_(envelope);
     var events = payload.events || [];
 
-    verifySignatureIfPossible_(e, bodyText);
+    authorizeWebhookRequest_(e, bodyText, envelope);
 
     var results = [];
     events.forEach(function (event) {
@@ -28,7 +29,21 @@ App.Webhook = (function () {
     };
   }
 
-  function verifySignatureIfPossible_(e, bodyText) {
+  function authorizeWebhookRequest_(e, bodyText, envelope) {
+    var proxySecret = App.Config.getWebhookProxySharedSecret();
+    var proxyToken = String(envelope && envelope.proxyToken ? envelope.proxyToken : '');
+
+    if (proxySecret) {
+      if (!App.Utils.constantTimeEquals(proxySecret, proxyToken)) {
+        throw new Error('Missing or invalid webhook proxy token');
+      }
+      return;
+    }
+
+    verifyLineSignatureIfPossible_(e, bodyText);
+  }
+
+  function verifyLineSignatureIfPossible_(e, bodyText) {
     var secret = App.Config.getLineChannelSecret();
     var requireSig = App.Config.getLineRequireSignature();
     var headers = App.Utils.headersToMap(e && e.headers ? e.headers : null);
@@ -55,6 +70,13 @@ App.Webhook = (function () {
     if (expected !== signature) {
       throw new Error('Invalid LINE signature');
     }
+  }
+
+  function extractLineWebhookPayload_(envelope) {
+    if (envelope && envelope.lineWebhook && typeof envelope.lineWebhook === 'object') {
+      return envelope.lineWebhook;
+    }
+    return envelope || {};
   }
 
   function handleEvent_(event) {

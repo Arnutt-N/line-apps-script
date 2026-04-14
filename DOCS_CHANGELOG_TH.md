@@ -19,6 +19,13 @@
 
 | วันที่ | ผู้แก้ | ไฟล์ที่แก้ | ประเภท | สรุปการเปลี่ยนแปลง | Reference |
 |---|---|---|---|---|---|
+| 2026-04-14 | codex | `DOCS_CHANGELOG_TH.md` | Updated | บันทึกการเพิ่ม Cloudflare webhook proxy และเอกสารที่เกี่ยวข้อง | LINE-webhook-302 |
+| 2026-04-14 | codex | `DOCS_INDEX_TH.md` | Updated | เพิ่มลิงก์เอกสาร Cloudflare webhook proxy และลำดับการอ่านใหม่ | LINE-webhook-302 |
+| 2026-04-14 | codex | `SECURITY_BASELINE_TH.md` | Updated | เพิ่มแนวทางใช้ shared secret ระหว่าง proxy กับ GAS สำหรับ webhook | LINE-webhook-302 |
+| 2026-04-14 | codex | `DEPLOYMENT_MANUAL_TH.md` | Updated | เพิ่มขั้นตอนใช้ proxy เมื่อ LINE verify webhook ได้ 302 Found | LINE-webhook-302 |
+| 2026-04-14 | codex | `ARCHITECTURE.md` | Updated | เพิ่ม optional Cloudflare webhook proxy ใน architecture overview | LINE-webhook-302 |
+| 2026-04-14 | codex | `README.md` | Updated | เพิ่มการอ้างอิง Cloudflare webhook proxy และ script property ใหม่ | LINE-webhook-302 |
+| 2026-04-14 | codex | `CLOUDFLARE_WEBHOOK_PROXY_TH.md` | Added | เพิ่มคู่มือ deploy Cloudflare Worker เพื่อแก้ LINE webhook 302 และ lock down GAS ด้วย shared secret | LINE-webhook-302 |
 | 2026-02-19 | codex | `ROLE_BASED_CHECKLISTS_TH.md` | Added | เพิ่ม checklist แยกตามบทบาท Agent/OpsLead/Release/Security/IC | - |
 | 2026-02-19 | codex | `KPI_DASHBOARD_GUIDE_TH.md` | Added | เพิ่มคู่มืออ่าน KPI dashboard พร้อม threshold และ action playbook | - |
 | 2026-02-19 | codex | `DOCS_INDEX_TH.md` | Updated | เพิ่มลิงก์และ workflow สำหรับ role checklists และ KPI guide | - |

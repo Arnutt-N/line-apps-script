@@ -73,6 +73,7 @@
 
 ## 6.1 LINE Webhook
 - ถ้ามี proxy หน้า Google Apps Script ต้องตรวจสอบ `x-line-signature` ที่ proxy ทุกครั้ง
+- ถ้าใช้ proxy ควรตั้ง `WEBHOOK_PROXY_SHARED_SECRET` ใน GAS และให้ proxy ส่ง token เดียวกันมาใน body
 - ถ้ารับ webhook เข้า Google Apps Script Web App ตรงๆ ห้ามตั้ง `LINE_REQUIRE_SIGNATURE=true`
 - สำหรับ direct GAS deployment ให้ลดความเสี่ยงด้วยการ:
   - ใช้ URL เฉพาะ production เท่านั้น

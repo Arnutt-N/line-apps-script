@@ -9,6 +9,7 @@
   - LINE API: `src/server/LineApi.gs`
   - Drive storage: `src/server/DriveRepo.gs`
   - Telegram alerts: `src/server/TelegramApi.gs`
+  - Optional webhook proxy: `cloudflare/line-webhook-proxy/`
 - Modules:
   - Dashboard: `src/server/ModuleDashboard.gs`
   - Live chat: `src/server/ModuleChat.gs`
@@ -43,8 +44,10 @@
 3. Optionally run `setupSeedDemoData()`.
 4. Deploy as Web App.
 5. Configure LINE webhook route: `?route=webhook`.
+6. Optional: point LINE webhook to the Cloudflare proxy and let the proxy forward into GAS.
 
 ## Notes
 - Chat page standalone: open `?page=chat` in a new tab.
 - Webhook signature verification is optional via `LINE_REQUIRE_SIGNATURE`.
+- When `WEBHOOK_PROXY_SHARED_SECRET` is set, GAS accepts webhook traffic only from a trusted proxy that injects the shared token into the request body.
 - Roles/permissions are seeded and editable via Sheets.

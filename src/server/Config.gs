@@ -39,6 +39,10 @@ App.Config = (function () {
     return App.Utils.toBool(get('LINE_REQUIRE_SIGNATURE', 'false'));
   }
 
+  function getWebhookProxySharedSecret() {
+    return get('WEBHOOK_PROXY_SHARED_SECRET', '');
+  }
+
   function getLineOaId() {
     return get('LINE_OA_ID', '');
   }
@@ -69,6 +73,7 @@ App.Config = (function () {
     getLineChannelAccessToken: getLineChannelAccessToken,
     getLineChannelSecret: getLineChannelSecret,
     getLineRequireSignature: getLineRequireSignature,
+    getWebhookProxySharedSecret: getWebhookProxySharedSecret,
     getLineOaId: getLineOaId,
     getTelegramBotToken: getTelegramBotToken,
     getTelegramChatId: getTelegramChatId,

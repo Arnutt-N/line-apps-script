@@ -160,6 +160,9 @@ clasp create --type standalone --title "LINE OA Platform"
 - `LINE_REQUIRE_SIGNATURE`
   - `true` = บังคับตรวจลายเซ็น webhook
   - `false` = ไม่บังคับ (ค่าเริ่มต้น)
+- `WEBHOOK_PROXY_SHARED_SECRET`
+  - ใช้เมื่อวาง proxy หน้า GAS
+  - ค่านี้ต้องตรงกับ `GAS_PROXY_TOKEN` ฝั่ง proxy
 - `DRIVE_PUBLIC_SHARING`
   - `true` = ตั้งไฟล์ที่อัปโหลดให้เปิดแบบ Anyone with link (เหมาะกับการส่ง media link ให้ LINE)
   - `false` = ไม่เปิด share อัตโนมัติ
@@ -258,6 +261,11 @@ clasp pull
 - Script Properties ของ LINE ถูกต้อง
 - Apps Script ไม่มี error ใน Executions
 - ถ้าตั้ง `LINE_REQUIRE_SIGNATURE=true` และยิงเข้า GAS ตรงๆ ให้เปลี่ยนเป็น `false` ก่อน เพราะ GAS อ่าน `X-Line-Signature` ไม่ได้
+
+### 10.2 ถ้า Verify แล้วได้ `302 Found`
+- ใช้ Cloudflare Worker proxy ที่อยู่ใน `cloudflare/line-webhook-proxy/`
+- ทำตามคู่มือ `CLOUDFLARE_WEBHOOK_PROXY_TH.md`
+- เปลี่ยน Webhook URL บน LINE ให้ชี้ไปที่ Worker URL แทน GAS URL
 
 ---
 

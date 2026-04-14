@@ -15,6 +15,7 @@ App.Settings = (function () {
         LINE_OA_ID: App.Config.getLineOaId(),
         LINE_CHANNEL_ACCESS_TOKEN: App.Utils.maskSecret(App.Config.getLineChannelAccessToken()),
         LINE_CHANNEL_SECRET: App.Utils.maskSecret(App.Config.getLineChannelSecret()),
+        WEBHOOK_PROXY_SHARED_SECRET: App.Utils.maskSecret(App.Config.getWebhookProxySharedSecret()),
         TELEGRAM_BOT_TOKEN: App.Utils.maskSecret(App.Config.getTelegramBotToken()),
         TELEGRAM_CHAT_ID: App.Config.getTelegramChatId(),
         SPREADSHEET_ID: App.Config.getSpreadsheetId(),
@@ -90,6 +91,8 @@ App.Settings = (function () {
     payload = payload || {};
     var target = payload.target || 'all';
     var requireSig = App.Config.getLineRequireSignature();
+    var proxySecret = App.Config.getWebhookProxySharedSecret();
+    var proxyEnabled = !!proxySecret;
 
     var results = {
       sheets: null,
@@ -120,11 +123,16 @@ App.Settings = (function () {
       var lineToken = App.Config.getLineChannelAccessToken();
       var lineSecret = App.Config.getLineChannelSecret();
       results.line = {
-        ok: !!lineToken && (!requireSig || !!lineSecret),
+        ok: !!lineToken && (proxyEnabled || !requireSig || !!lineSecret),
         detail: lineToken ? 'LINE access token configured' : 'LINE token missing',
         channelSecretConfigured: !!lineSecret,
+        proxyProtectionConfigured: proxyEnabled,
         signatureRequired: requireSig,
-        webhookCompatibility: requireSig ? {
+        webhookMode: proxyEnabled ? 'proxy_enforced' : (requireSig ? 'direct_signature_required' : 'direct_unsigned'),
+        webhookCompatibility: proxyEnabled ? {
+          ok: true,
+          detail: 'Proxy mode enabled. The proxy must verify X-Line-Signature and forward payloads with the shared proxy token.'
+        } : requireSig ? {
           ok: false,
           detail: 'Direct Google Apps Script web apps cannot read X-Line-Signature. Disable LINE_REQUIRE_SIGNATURE or place a proxy in front of GAS.'
         } : {
