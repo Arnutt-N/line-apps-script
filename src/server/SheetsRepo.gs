@@ -1,6 +1,7 @@
 ﻿var App = App || {};
 
 App.SheetsRepo = (function () {
+  var READ_CACHE = {};
   var SCHEMAS = {
     users: ['id', 'line_user_id', 'display_name', 'picture_url', 'status_message', 'language', 'followed_at', 'unfollowed_at', 'readded_count', 'last_seen_at', 'tags', 'notes', 'is_blocked', 'current_state', 'created_at', 'updated_at'],
     chat_rooms: ['id', 'user_id', 'mode', 'assigned_admin', 'last_message_at', 'last_message_text', 'unread_count', 'status', 'created_at', 'updated_at'],
@@ -72,6 +73,10 @@ App.SheetsRepo = (function () {
   }
 
   function readAll(name) {
+    if (READ_CACHE[name]) {
+      return cloneRows_(READ_CACHE[name]);
+    }
+
     var sheet = sheet_(name);
     var headers = headers_(name);
     var lastRow = sheet.getLastRow();
@@ -80,7 +85,7 @@ App.SheetsRepo = (function () {
     }
 
     var values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
-    return values
+    var rows = values
       .map(function (row) {
         var obj = {};
         headers.forEach(function (h, idx) {
@@ -91,6 +96,9 @@ App.SheetsRepo = (function () {
       .filter(function (row) {
         return String(row.id || '').trim() !== '';
       });
+
+    READ_CACHE[name] = cloneRows_(rows);
+    return cloneRows_(READ_CACHE[name]);
   }
 
   function indexById_(rows) {
@@ -119,6 +127,7 @@ App.SheetsRepo = (function () {
       return row[h] == null ? '' : row[h];
     });
     sheet.appendRow(values);
+    invalidateCache_(name);
     return row;
   }
 
@@ -147,6 +156,7 @@ App.SheetsRepo = (function () {
     });
 
     sheet.getRange(rowIndex + 2, 1, 1, headers.length).setValues([values]);
+    invalidateCache_(name);
     return target;
   }
 
@@ -200,7 +210,18 @@ App.SheetsRepo = (function () {
     if (idx >= 0) {
       sheet.deleteRow(idx + 2);
     }
+    invalidateCache_(name);
     return row;
+  }
+
+  function cloneRows_(rows) {
+    return rows.map(function (row) {
+      return Object.assign({}, row);
+    });
+  }
+
+  function invalidateCache_(name) {
+    delete READ_CACHE[name];
   }
 
   function appendAudit(actorEmail, actionKey, targetType, targetId, detail) {

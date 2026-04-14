@@ -1,6 +1,9 @@
 ﻿var App = App || {};
 
 App.AutoReply = (function () {
+  var AUTO_REPLY_CACHE_KEY = 'autoreply_runtime_bundle_v1';
+  var AUTO_REPLY_CACHE_TTL_SEC = 120;
+
   function list() {
     var intents = App.SheetsRepo.readAll('intents').map(function (row) {
       return {
@@ -52,6 +55,7 @@ App.AutoReply = (function () {
       priority: Number(payload.priority || 0)
     });
 
+    invalidateRuntimeCache_();
     App.SheetsRepo.appendAudit(ctx.email, 'autoreply.createIntent', 'intents', row.id, row);
     return row;
   }
@@ -65,6 +69,7 @@ App.AutoReply = (function () {
       priority: Number(payload.priority || 0)
     });
 
+    invalidateRuntimeCache_();
     App.SheetsRepo.appendAudit(ctx.email, 'autoreply.updateIntent', 'intents', row.id, row);
     return row;
   }
@@ -84,6 +89,7 @@ App.AutoReply = (function () {
       }
     });
 
+    invalidateRuntimeCache_();
     App.SheetsRepo.appendAudit(ctx.email, 'autoreply.deleteIntent', 'intents', payload.id, {});
 
     return {
@@ -108,6 +114,7 @@ App.AutoReply = (function () {
       row = App.SheetsRepo.insert('intent_keywords', data);
     }
 
+    invalidateRuntimeCache_();
     App.SheetsRepo.appendAudit(ctx.email, 'autoreply.upsertKeyword', 'intent_keywords', row.id, row);
 
     return row;
@@ -129,6 +136,7 @@ App.AutoReply = (function () {
       row = App.SheetsRepo.insert('intent_responses', data);
     }
 
+    invalidateRuntimeCache_();
     App.SheetsRepo.appendAudit(ctx.email, 'autoreply.upsertResponse', 'intent_responses', row.id, row);
     return row;
   }
@@ -157,12 +165,9 @@ App.AutoReply = (function () {
 
   function matchIntent_(text) {
     var normalized = String(text || '').toLowerCase();
-    var intents = App.SheetsRepo.readAll('intents').filter(function (row) {
-      return row.is_active === '' || App.Utils.toBool(row.is_active);
-    });
-    var keywords = App.SheetsRepo.readAll('intent_keywords').filter(function (row) {
-      return row.is_active === '' || App.Utils.toBool(row.is_active);
-    });
+    var runtime = getRuntimeBundle_();
+    var intents = runtime.intents;
+    var keywords = runtime.keywords;
 
     var best = null;
 
@@ -289,7 +294,8 @@ App.AutoReply = (function () {
   }
 
   function messagesForIntent_(intentId) {
-    var responses = App.SheetsRepo.readAll('intent_responses').filter(function (row) {
+    var runtime = getRuntimeBundle_();
+    var responses = runtime.responses.filter(function (row) {
       var active = row.is_active === '' || App.Utils.toBool(row.is_active);
       return active && String(row.intent_id) === String(intentId);
     });
@@ -300,7 +306,7 @@ App.AutoReply = (function () {
 
     return responses.map(function (row) {
       if (row.template_id) {
-        var template = App.SheetsRepo.findOne('response_templates', 'id', row.template_id);
+        var template = runtime.templatesById[row.template_id];
         if (template) {
           return normalizeLineMessage_(App.Utils.parseJson(template.payload_json, { type: 'text', text: 'Template invalid' }));
         }
@@ -315,6 +321,64 @@ App.AutoReply = (function () {
       return [];
     }
     return messagesForIntent_(match.intent.id);
+  }
+
+  function getRuntimeBundle_() {
+    var cache = CacheService.getScriptCache();
+    var cached = null;
+
+    try {
+      cached = cache.get(AUTO_REPLY_CACHE_KEY);
+    } catch (error) {
+      cached = null;
+    }
+
+    if (cached) {
+      var parsed = App.Utils.parseJson(cached, null);
+      if (parsed) {
+        return parsed;
+      }
+    }
+
+    var built = buildRuntimeBundle_();
+
+    try {
+      cache.put(AUTO_REPLY_CACHE_KEY, App.Utils.stringify(built), AUTO_REPLY_CACHE_TTL_SEC);
+    } catch (error) {
+      // Ignore cache write failures. Auto reply should still work from Sheets.
+    }
+
+    return built;
+  }
+
+  function buildRuntimeBundle_() {
+    var intents = App.SheetsRepo.readAll('intents').filter(function (row) {
+      return row.is_active === '' || App.Utils.toBool(row.is_active);
+    });
+    var keywords = App.SheetsRepo.readAll('intent_keywords').filter(function (row) {
+      return row.is_active === '' || App.Utils.toBool(row.is_active);
+    });
+    var responses = App.SheetsRepo.readAll('intent_responses');
+    var templatesById = {};
+
+    App.SheetsRepo.readAll('response_templates').forEach(function (row) {
+      templatesById[row.id] = row;
+    });
+
+    return {
+      intents: intents,
+      keywords: keywords,
+      responses: responses,
+      templatesById: templatesById
+    };
+  }
+
+  function invalidateRuntimeCache_() {
+    try {
+      CacheService.getScriptCache().remove(AUTO_REPLY_CACHE_KEY);
+    } catch (error) {
+      // Ignore cache invalidation failures. The TTL is short enough for fallback.
+    }
   }
 
   return {

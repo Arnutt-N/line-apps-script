@@ -257,45 +257,30 @@ App.Chat = (function () {
       return { skipped: true, reason: 'No source.userId' };
     }
 
-    // Keep the webhook path lean. Extra profile fetches can push GAS beyond
-    // LINE's 2-second webhook timeout, so we rely on the stored profile here.
-    var user = ensureUserByLineId(lineUserId, {});
-    var room = ensureRoomByUserId(user.id);
+    var user = App.SheetsRepo.findOne('users', 'line_user_id', lineUserId);
+    if (!user) {
+      user = ensureUserByLineId(lineUserId, {});
+    }
+
+    var room = App.SheetsRepo.findOne('chat_rooms', 'user_id', user.id);
+    if (!room) {
+      room = ensureRoomByUserId(user.id);
+    }
+
     var message = event.message || {};
     var textValue = message.type === 'text' ? (message.text || '') : '';
-
-    var row = App.SheetsRepo.insert('chat_messages', {
-      room_id: room.id,
-      user_id: user.id,
-      sender_type: 'user',
-      sender_id: lineUserId,
-      message_type: message.type || event.type,
-      text: textValue,
-      payload_json: App.Utils.stringify(message),
-      file_drive_id: '',
-      file_url: '',
-      status: 'received',
-      is_read: 'false'
-    });
-
-    App.SheetsRepo.updateById('chat_rooms', room.id, {
-      last_message_at: App.Utils.nowIso(),
-      last_message_text: previewTextFromMessage_(message),
-      unread_count: Number(room.unread_count || 0) + 1,
-      status: 'open'
-    });
-
-    if (isHumanRequest_(textValue)) {
-      App.SheetsRepo.updateById('chat_rooms', room.id, {
-        mode: 'manual'
-      });
-      sendHumanAlert_(user, textValue);
-    }
 
     return {
       user: user,
       room: room,
-      message: row
+      eventType: event.type,
+      lineUserId: lineUserId,
+      message: {
+        type: message.type || event.type,
+        text: textValue,
+        payload_json: App.Utils.stringify(message)
+      },
+      shouldSwitchToManual: isHumanRequest_(textValue)
     };
   }
 
@@ -304,9 +289,13 @@ App.Chat = (function () {
       return { skipped: true };
     }
 
-    var room = App.SheetsRepo.findOne('chat_rooms', 'id', inbound.room.id);
-    if (!room || String(room.mode || 'bot') !== 'bot') {
+    var room = inbound.room || {};
+    if (!room.id || String(room.mode || 'bot') !== 'bot') {
       return { skipped: true, reason: 'Room mode is manual' };
+    }
+
+    if (inbound.shouldSwitchToManual) {
+      return { skipped: true, reason: 'Escalated to manual' };
     }
 
     var payload = App.Utils.parseJson(inbound.message.payload_json, {});
@@ -328,10 +317,55 @@ App.Chat = (function () {
         }
       }
 
-      replies.forEach(function (msg) {
+      return {
+        ok: true,
+        count: replies.length,
+        replies: replies
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error.message
+      };
+    }
+  }
+
+  function persistInboundActivity_(inbound, botResult) {
+    if (!inbound || !inbound.user || !inbound.room || !inbound.message) {
+      return null;
+    }
+
+    var room = inbound.room;
+    var user = inbound.user;
+    var now = App.Utils.nowIso();
+    var previewText = previewTextFromMessage_(App.Utils.parseJson(inbound.message.payload_json, {
+      type: inbound.message.type,
+      text: inbound.message.text
+    }));
+
+    App.SheetsRepo.updateById('users', user.id, {
+      last_seen_at: now
+    });
+
+    var inboundRow = App.SheetsRepo.insert('chat_messages', {
+      room_id: room.id,
+      user_id: user.id,
+      sender_type: 'user',
+      sender_id: inbound.lineUserId,
+      message_type: inbound.message.type,
+      text: inbound.message.text || '',
+      payload_json: inbound.message.payload_json,
+      file_drive_id: '',
+      file_url: '',
+      status: 'received',
+      is_read: 'false'
+    });
+
+    if (botResult && botResult.ok && botResult.replies && botResult.replies.length) {
+      botResult.replies.forEach(function (msg) {
         App.SheetsRepo.insert('chat_messages', {
           room_id: room.id,
-          user_id: inbound.user.id,
+          user_id: user.id,
           sender_type: 'bot',
           sender_id: 'bot',
           message_type: msg.type,
@@ -343,23 +377,22 @@ App.Chat = (function () {
           is_read: 'true'
         });
       });
-
-      App.SheetsRepo.updateById('chat_rooms', room.id, {
-        last_message_at: App.Utils.nowIso(),
-        last_message_text: previewTextFromMessage_(replies[replies.length - 1]),
-        unread_count: Number(room.unread_count || 0)
-      });
-
-      return {
-        ok: true,
-        count: replies.length
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        error: error.message
-      };
+      previewText = previewTextFromMessage_(botResult.replies[botResult.replies.length - 1]);
     }
+
+    App.SheetsRepo.updateById('chat_rooms', room.id, {
+      last_message_at: now,
+      last_message_text: previewText,
+      unread_count: Number(room.unread_count || 0) + 1,
+      status: 'open',
+      mode: inbound.shouldSwitchToManual ? 'manual' : room.mode
+    });
+
+    if (inbound.shouldSwitchToManual) {
+      sendHumanAlert_(user, inbound.message.text || '');
+    }
+
+    return inboundRow;
   }
 
   function resolveUser_(payload) {
@@ -591,6 +624,7 @@ App.Chat = (function () {
     ensureRoomByUserId: ensureRoomByUserId,
     ingestInboundMessage: ingestInboundMessage,
     runBotReply: runBotReply,
+    persistInboundActivity: persistInboundActivity_,
     runtimeConfig: runtimeConfig,
     normalizeMessage: normalizeMessage_
   };

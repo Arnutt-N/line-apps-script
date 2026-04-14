@@ -174,12 +174,14 @@ App.Webhook = (function () {
   function handleMessage_(event) {
     var inbound = App.Chat.ingestInboundMessage(event);
     var bot = App.Chat.runBotReply(inbound, event.replyToken);
+    var persisted = App.Chat.persistInboundActivity(inbound, bot);
 
     return {
       ok: true,
       eventType: 'message',
       userId: inbound.user ? inbound.user.id : '',
       roomId: inbound.room ? inbound.room.id : '',
+      messageId: persisted ? persisted.id : '',
       bot: bot
     };
   }
