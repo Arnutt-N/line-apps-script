@@ -1,4 +1,4 @@
-# GAS Webhook Lite
+# GAS Lite
 
 โปรเจกต์นี้เป็น Apps Script คนละตัวกับระบบ admin/live chat หลัก ใช้สำหรับตอบ LINE webhook แบบเบาและเร็วที่สุดเท่าที่ทำได้บน GAS
 
@@ -57,7 +57,7 @@
 1. สร้าง Apps Script project ใหม่
 2. copy `.clasp.example.json` เป็น `.clasp.json`
 3. ใส่ `scriptId` ของโปรเจกต์ใหม่
-4. จากโฟลเดอร์ `gas-webhook-lite` รัน:
+4. จากโฟลเดอร์ `gas-lite` รัน:
 
 ```bash
 clasp push

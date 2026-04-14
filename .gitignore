@@ -30,4 +30,7 @@ node_modules/
 
 # Secrets and account-scoped clasp configs
 .clasp.old-account.json
+/gas-main/.clasp.json
+/gas-lite/.clasp.json
+/gas-legacy/.clasp.old-account.json
 secrets/

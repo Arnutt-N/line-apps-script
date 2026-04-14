@@ -13,7 +13,7 @@ var LiteWebhookApp = (function () {
 
     return jsonOutput_({
       ok: true,
-      app: 'gas-webhook-lite',
+      app: 'gas-lite',
       nowIso: new Date().toISOString(),
       spreadsheetConfigured: !!spreadsheetId,
       lineTokenConfigured: !!getProperty_('LINE_CHANNEL_ACCESS_TOKEN', ''),
