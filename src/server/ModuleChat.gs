@@ -257,22 +257,9 @@ App.Chat = (function () {
       return { skipped: true, reason: 'No source.userId' };
     }
 
-    var profilePatch = {};
-    try {
-      if (App.Config.getLineChannelAccessToken()) {
-        var profile = App.LineApi.getProfile(lineUserId);
-        profilePatch = {
-          displayName: profile.displayName,
-          pictureUrl: profile.pictureUrl,
-          statusMessage: profile.statusMessage,
-          language: profile.language
-        };
-      }
-    } catch (error) {
-      profilePatch = {};
-    }
-
-    var user = ensureUserByLineId(lineUserId, profilePatch);
+    // Keep the webhook path lean. Extra profile fetches can push GAS beyond
+    // LINE's 2-second webhook timeout, so we rely on the stored profile here.
+    var user = ensureUserByLineId(lineUserId, {});
     var room = ensureRoomByUserId(user.id);
     var message = event.message || {};
     var textValue = message.type === 'text' ? (message.text || '') : '';
@@ -335,12 +322,6 @@ App.Chat = (function () {
     try {
       if (App.Config.getLineChannelAccessToken()) {
         if (replyToken) {
-          try {
-            App.LineApi.showLoading(inbound.user.line_user_id, 5);
-          } catch (loadingError) {
-            // Loading indicator is cosmetic; log and continue so the reply still lands.
-            Logger.log('showLoading failed: ' + loadingError);
-          }
           App.LineApi.replyMessage(replyToken, replies);
         } else {
           App.LineApi.pushMessage(inbound.user.line_user_id, replies);
