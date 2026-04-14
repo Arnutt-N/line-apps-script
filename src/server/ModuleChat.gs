@@ -312,7 +312,7 @@ App.Chat = (function () {
     };
   }
 
-  function runBotReply(inbound) {
+  function runBotReply(inbound, replyToken) {
     if (!inbound || !inbound.message) {
       return { skipped: true };
     }
@@ -334,7 +334,16 @@ App.Chat = (function () {
 
     try {
       if (App.Config.getLineChannelAccessToken()) {
-        App.LineApi.pushMessage(inbound.user.line_user_id, replies);
+        if (replyToken) {
+          try {
+            App.LineApi.showLoading(inbound.user.line_user_id, 5000);
+          } catch (loadingError) {
+            // ignore loading indicator errors
+          }
+          App.LineApi.replyMessage(replyToken, replies);
+        } else {
+          App.LineApi.pushMessage(inbound.user.line_user_id, replies);
+        }
       }
 
       replies.forEach(function (msg) {

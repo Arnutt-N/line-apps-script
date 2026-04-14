@@ -141,7 +141,7 @@ App.Webhook = (function () {
 
   function handleMessage_(event) {
     var inbound = App.Chat.ingestInboundMessage(event);
-    var bot = App.Chat.runBotReply(inbound);
+    var bot = App.Chat.runBotReply(inbound, event.replyToken);
 
     return {
       ok: true,

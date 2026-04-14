@@ -92,6 +92,13 @@ App.LineApi = (function () {
     return request_('delete', '/richmenu/' + encodeURIComponent(richMenuId), null).data;
   }
 
+  function showLoading(chatId, duration) {
+    return request_('post', '/chat/loading/start', {
+      chatId: chatId,
+      duration: Number(duration || 5000)
+    }).data;
+  }
+
   return {
     pushMessage: pushMessage,
     replyMessage: replyMessage,
@@ -101,7 +108,8 @@ App.LineApi = (function () {
     setDefaultRichMenu: setDefaultRichMenu,
     linkUserRichMenu: linkUserRichMenu,
     unlinkUserRichMenu: unlinkUserRichMenu,
-    deleteRichMenu: deleteRichMenu
+    deleteRichMenu: deleteRichMenu,
+    showLoading: showLoading
   };
 })();
 
