@@ -22,3 +22,7 @@ desktop.ini
 .claude/settings.local.json
 .claude/cache/
 .claude/logs/
+
+# Secrets and account-scoped clasp configs
+.clasp.old-account.json
+secrets/

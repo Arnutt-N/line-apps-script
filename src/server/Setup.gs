@@ -208,10 +208,10 @@ App.Setup = (function () {
 
   function seedTemplates_() {
     var templates = [
-      { name: 'ข้อความตอนรับ', category: 'intent_template', payload: { type: 'text', text: 'สวสดี ยนดตอนรบ' } },
+      { name: 'ข้อความต้อนรับ', category: 'intent_template', payload: { type: 'text', text: 'สวัสดี ยินดีต้อนรับ' } },
       { name: 'ขอบคณ', category: 'intent_template', payload: { type: 'text', text: 'ขอบคณทตดตอเรา' } },
       { name: 'ยกเลก', category: 'intent_template', payload: { type: 'text', text: 'ระบบยกเลกรายการใหแลว' } },
-      { name: 'ข้อความคาเรมตน', category: 'intent_template', payload: { type: 'text', text: 'กรณาระบรายละเอยดเพมเตม' } },
+      { name: 'ข้อความเริ่มต้น', category: 'intent_template', payload: { type: 'text', text: 'กรุณาระบุรายละเอียดเพิ่มเติม' } },
       { name: 'Text message', category: 'object', payload: { type: 'text', text: 'Sample text' } },
       { name: 'Text message (v2)', category: 'object', payload: { type: 'textV2', text: '{user} sample text v2' } },
       { name: 'Sticker message', category: 'object', payload: { type: 'sticker', packageId: '446', stickerId: '1988' } },
@@ -268,7 +268,7 @@ App.Setup = (function () {
         mode: 'bot',
         assigned_admin: '',
         last_message_at: App.Utils.nowIso(),
-        last_message_text: 'สวสดี ยนดตอนรบ',
+        last_message_text: 'สวัสดี ยินดีต้อนรับ',
         unread_count: 0,
         status: 'open'
       });
@@ -280,7 +280,7 @@ App.Setup = (function () {
       sender_type: 'system',
       sender_id: 'system',
       message_type: 'text',
-      text: 'สวสดี ยนดตอนรบ',
+      text: 'สวัสดี ยินดีต้อนรับ',
       payload_json: '{}',
       file_drive_id: '',
       file_url: '',
@@ -288,11 +288,55 @@ App.Setup = (function () {
       is_read: 'true'
     });
 
+    var seededIntent = seedDemoIntent_();
+
     return {
       ok: true,
       demoUserId: demoUser.id,
-      roomId: room.id
+      roomId: room.id,
+      intentId: seededIntent ? seededIntent.id : null
     };
+  }
+
+  function seedDemoIntent_() {
+    var intent = App.SheetsRepo.findOne('intents', 'key', 'greeting');
+    if (!intent) {
+      intent = App.SheetsRepo.insert('intents', {
+        key: 'greeting',
+        name: 'ทักทาย',
+        description: 'ตอบรับคำทักทายทั่วไป',
+        priority: 10,
+        is_active: 'true'
+      });
+    }
+
+    var greetingKeywords = ['สวัสดี', 'สวัสดีครับ', 'สวัสดีค่ะ', 'hello', 'hi', 'ทักทาย'];
+    greetingKeywords.forEach(function (kw) {
+      var existing = App.SheetsRepo.findOne('intent_keywords', 'keyword', kw);
+      if (!existing) {
+        App.SheetsRepo.insert('intent_keywords', {
+          intent_id: intent.id,
+          keyword: kw,
+          match_type: 'contains',
+          weight: 1,
+          is_active: 'true'
+        });
+      }
+    });
+
+    var greetingTemplate = App.SheetsRepo.findOne('response_templates', 'name', 'ข้อความต้อนรับ');
+    var hasResponse = App.SheetsRepo.findMany('intent_responses', { intent_id: intent.id }).length > 0;
+    if (!hasResponse) {
+      App.SheetsRepo.insert('intent_responses', {
+        intent_id: intent.id,
+        response_type: greetingTemplate ? 'template' : 'text',
+        template_id: greetingTemplate ? greetingTemplate.id : '',
+        response_json: greetingTemplate ? '' : JSON.stringify({ type: 'text', text: 'สวัสดีครับ ยินดีต้อนรับ' }),
+        is_active: 'true'
+      });
+    }
+
+    return intent;
   }
 
   return {
