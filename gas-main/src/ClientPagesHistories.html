@@ -1,0 +1,141 @@
+<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.histories = {
+    async init() {
+      await this.reload();
+    },
+
+    destroy() {},
+
+    async reload() {
+      await UI.withLoading(async () => {
+        try {
+          const [chats, friends] = await Promise.all([
+            Api.request('histories.chats',   { limit: 200 }),
+            Api.request('histories.friends', { limit: 200 })
+          ]);
+          Store.update('histories', {
+            tab: Store.state.histories.tab || 'chats',
+            chats: chats.rows || [],
+            friends: friends.rows || [],
+            loaded: true
+          });
+        } catch (err) {
+          UI.toast(err.message, { error: true });
+        }
+      });
+    },
+
+    render() {
+      const h = Store.state.histories;
+      const tab = h.tab || 'chats';
+
+      const tabBtn = (key, label, icon) => {
+        const active = key === tab;
+        const cls = active
+          ? 'bg-emerald-500 text-white'
+          : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-300';
+        return `<button data-tab="${key}" class="px-4 py-2 rounded-md text-sm inline-flex items-center gap-1 ${cls}">${UI.icon(icon)} ${UI.escapeHtml(label)}</button>`;
+      };
+
+      const body = tab === 'chats' ? this.renderChats(h.chats) : this.renderFriends(h.friends);
+
+      return `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                ${UI.icon('history', 'text-emerald-600')} ประวัติการใช้งาน
+              </h2>
+              <p class="text-sm text-slate-500 mt-1">ดึงจากชีต log ของระบบ (อ่านอย่างเดียว)</p>
+            </div>
+            <button id="histRefreshBtn" class="px-3 py-2 text-sm text-slate-600 border border-slate-300 rounded-md hover:bg-slate-50 inline-flex items-center gap-1">
+              ${UI.icon('refresh-cw')} รีเฟรช
+            </button>
+          </div>
+
+          <div class="flex gap-2">
+            ${tabBtn('chats',   'ประวัติแชท', 'message-circle')}
+            ${tabBtn('friends', 'เพื่อน/ติดตาม', 'user-plus')}
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            ${body}
+          </div>
+        </div>
+      `;
+    },
+
+    renderChats(rows) {
+      if (!rows || rows.length === 0) {
+        return '<div class="py-10 text-center text-slate-400">ยังไม่มีประวัติแชท</div>';
+      }
+      return `
+        <table class="w-full">
+          <thead>
+            <tr class="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+              <th class="py-3 px-4">เวลา</th>
+              <th class="py-3 px-4">ชื่อ/User</th>
+              <th class="py-3 px-4">ข้อความผู้ใช้</th>
+              <th class="py-3 px-4">ข้อความตอบกลับ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r) => `
+              <tr class="border-t border-slate-100 hover:bg-slate-50">
+                <td class="py-2 px-4 text-xs text-slate-500 whitespace-nowrap">${UI.formatDateTime(r.timestamp)}</td>
+                <td class="py-2 px-4">
+                  <div class="text-sm font-medium text-slate-800">${UI.escapeHtml(r.displayName || 'Unknown')}</div>
+                  <div class="text-[11px] text-slate-400 font-mono">${UI.escapeHtml((r.userId || '').slice(0, 12))}...</div>
+                </td>
+                <td class="py-2 px-4 text-sm text-slate-700 max-w-xs truncate">${UI.escapeHtml(r.userMessage)}</td>
+                <td class="py-2 px-4 text-sm text-slate-500 max-w-xs truncate">${UI.escapeHtml(r.botResponse)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    },
+
+    renderFriends(rows) {
+      if (!rows || rows.length === 0) {
+        return '<div class="py-10 text-center text-slate-400">ยังไม่มีประวัติติดตาม</div>';
+      }
+      return `
+        <table class="w-full">
+          <thead>
+            <tr class="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+              <th class="py-3 px-4">เวลา</th>
+              <th class="py-3 px-4">ชื่อ/User</th>
+              <th class="py-3 px-4">การกระทำ</th>
+              <th class="py-3 px-4">รายละเอียด</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r) => `
+              <tr class="border-t border-slate-100 hover:bg-slate-50">
+                <td class="py-2 px-4 text-xs text-slate-500 whitespace-nowrap">${UI.formatDateTime(r.timestamp)}</td>
+                <td class="py-2 px-4">
+                  <div class="text-sm font-medium text-slate-800">${UI.escapeHtml(r.displayName || 'Unknown')}</div>
+                  <div class="text-[11px] text-slate-400 font-mono">${UI.escapeHtml((r.userId || '').slice(0, 12))}...</div>
+                </td>
+                <td class="py-2 px-4">${UI.badge(r.action, r.action === 'follow' ? 'green' : 'slate')}</td>
+                <td class="py-2 px-4 text-sm text-slate-600">${UI.escapeHtml(r.details)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    },
+
+    bind(root) {
+      root.querySelector('#histRefreshBtn')?.addEventListener('click', () => this.reload());
+      root.querySelectorAll('[data-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          Store.update('histories.tab', btn.getAttribute('data-tab'));
+        });
+      });
+    }
+  };
+</script>

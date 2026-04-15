@@ -1,0 +1,521 @@
+<script>
+  window.Pages = window.Pages || {};
+
+  // Starter payloads per LINE message type.
+  const EDITOR_TYPE_TEMPLATES = {
+    text:     () => ({ type: 'text', text: '' }),
+    image:    () => ({ type: 'image', originalContentUrl: 'https://', previewImageUrl: 'https://' }),
+    sticker:  () => ({ type: 'sticker', packageId: '446', stickerId: '1988' }),
+    location: () => ({ type: 'location', title: '', address: '', latitude: 13.7563, longitude: 100.5018 }),
+    flex:     () => ({ type: 'flex', altText: '', contents: { type: 'bubble', body: { type: 'box', layout: 'vertical', contents: [] } } })
+  };
+
+  window.Pages.editor = {
+    async init() {
+      try {
+        if (!Store.state.flexPresets || Store.state.flexPresets.length === 0) {
+          const presets = await Api.request('flex.presets', {});
+          Store.set({ flexPresets: presets || [] });
+        }
+      } catch (err) {
+        UI.toast('โหลด Flex preset ไม่สำเร็จ: ' + err.message, { error: true });
+      }
+    },
+
+    destroy() {},
+
+    render() {
+      const e = Store.state.editor;
+      const title = e.isNew ? 'สร้าง intent ใหม่' : `แก้ไข intent: ${e.intent}`;
+      const messagesHtml = (e.messages || []).map((m, i) => this.renderMessageCard(m, i)).join('');
+
+      return `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <button id="editorBackBtn" class="p-2 rounded-md hover:bg-slate-100 text-slate-600">
+                ${UI.icon('arrow-left')}
+              </button>
+              <div>
+                <h2 class="text-xl font-bold text-slate-900">${UI.escapeHtml(title)}</h2>
+                <p class="text-sm text-slate-500">ข้อความจะถูกส่งตามลำดับเมื่อผู้ใช้พิมพ์ตรงกับ intent</p>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button id="editorPreviewBtn" class="px-3 py-2 text-sm border border-slate-300 rounded-md hover:bg-slate-50 inline-flex items-center gap-1">
+                ${UI.icon('eye')} Preview
+              </button>
+              <button id="editorSaveBtn" class="px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-md inline-flex items-center gap-1">
+                ${UI.icon('save')} บันทึก
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-2 space-y-4">
+              <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+                <label class="block">
+                  <span class="text-sm font-medium text-slate-700">คำที่ผู้ใช้พิมพ์ (intent)</span>
+                  <input id="editorIntent" type="text" value="${UI.escapeHtml(e.intent)}"
+                         placeholder="เช่น เมนู, ที่อยู่"
+                         class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                  <label class="block">
+                    <span class="text-sm font-medium text-slate-700">ชนิดการจับคู่</span>
+                    <select id="editorMatchType" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md">
+                      <option value="exact" ${e.match_type === 'exact' ? 'selected' : ''}>จับคู่แบบตรงเป๊ะ (exact)</option>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="text-sm font-medium text-slate-700">ลำดับความสำคัญ</span>
+                    <input id="editorPriority" type="number" value="${e.priority}"
+                           class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md" />
+                  </label>
+                </div>
+                <label class="block">
+                  <span class="text-sm font-medium text-slate-700">คำอธิบาย (ไม่บังคับ)</span>
+                  <input id="editorDescription" type="text" value="${UI.escapeHtml(e.description)}"
+                         class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md" />
+                </label>
+                <label class="inline-flex items-center gap-2">
+                  <input id="editorActive" type="checkbox" ${e.is_active ? 'checked' : ''} class="rounded text-emerald-500 focus:ring-emerald-500" />
+                  <span class="text-sm text-slate-700">เปิดใช้งาน</span>
+                </label>
+              </div>
+
+              <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                  ${UI.icon('layers', 'text-emerald-600')} ข้อความตอบกลับ (สูงสุด 5)
+                </h3>
+                <button id="editorAddBtn" class="px-3 py-2 text-sm border border-emerald-300 text-emerald-700 rounded-md hover:bg-emerald-50 inline-flex items-center gap-1">
+                  ${UI.icon('plus')} เพิ่มข้อความ
+                </button>
+              </div>
+
+              <div id="editorMessages" class="space-y-3">
+                ${messagesHtml || '<div class="text-sm text-slate-400 italic p-6 bg-white border border-dashed border-slate-300 rounded-xl text-center">ยังไม่มีข้อความ — เพิ่มข้อความแรก</div>'}
+              </div>
+            </div>
+
+            <aside class="space-y-3">
+              <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sticky top-4">
+                <div class="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                  ${UI.icon('smartphone', 'text-emerald-600')} Preview
+                </div>
+                <div id="editorLivePreview" class="bg-slate-100 rounded-lg p-3 min-h-[200px] scroll-y max-h-[70vh]">
+                  ${UI.previewMessages(this.buildPreviewMessages(e.messages))}
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      `;
+    },
+
+    renderMessageCard(m, index) {
+      const type = m.type || 'text';
+      const body = this.renderTypeEditor(type, m, index);
+      const hasQr = m.quick_reply_json && m.quick_reply_json.length > 0;
+
+      return `
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3" data-msg-index="${index}">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">${index + 1}</span>
+              <select class="px-2 py-1 border border-slate-300 rounded text-sm" data-field="type">
+                <option value="text"     ${type === 'text' ? 'selected' : ''}>ข้อความ (text)</option>
+                <option value="image"    ${type === 'image' ? 'selected' : ''}>รูปภาพ (image)</option>
+                <option value="sticker"  ${type === 'sticker' ? 'selected' : ''}>สติกเกอร์ (sticker)</option>
+                <option value="location" ${type === 'location' ? 'selected' : ''}>ตำแหน่ง (location)</option>
+                <option value="flex"     ${type === 'flex' ? 'selected' : ''}>Flex Message</option>
+              </select>
+            </div>
+            <div class="flex gap-1">
+              <button class="p-1.5 text-slate-500 hover:bg-slate-100 rounded" data-action="move-up" title="ขึ้น">${UI.icon('chevron-up')}</button>
+              <button class="p-1.5 text-slate-500 hover:bg-slate-100 rounded" data-action="move-down" title="ลง">${UI.icon('chevron-down')}</button>
+              <button class="p-1.5 text-rose-500 hover:bg-rose-50 rounded" data-action="remove" title="ลบ">${UI.icon('trash-2')}</button>
+            </div>
+          </div>
+
+          ${body}
+
+          <details class="border-t border-slate-100 pt-3" ${hasQr ? 'open' : ''}>
+            <summary class="text-sm text-slate-600 cursor-pointer flex items-center gap-1">
+              ${UI.icon('reply')} Quick Reply${hasQr ? ' <span class="text-xs text-emerald-600 ml-1">(มีข้อมูล)</span>' : ''}
+            </summary>
+            <textarea rows="4" placeholder='{"items":[{"type":"action","action":{"type":"message","label":"เมนู","text":"เมนู"}}]}'
+                      class="mt-2 block w-full px-3 py-2 border border-slate-300 rounded-md text-xs font-mono"
+                      data-field="quick_reply_json">${UI.escapeHtml(m.quick_reply_json || '')}</textarea>
+            <div class="text-xs text-slate-400 mt-1">JSON ของ quick reply (ปล่อยว่างได้)</div>
+          </details>
+        </div>
+      `;
+    },
+
+    renderTypeEditor(type, m, index) {
+      const payload = this.safeParse(m.payload_json);
+
+      if (type === 'text') {
+        return `
+          <label class="block">
+            <span class="text-xs text-slate-500">ข้อความ</span>
+            <textarea rows="3" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                      data-simple-field="text">${UI.escapeHtml(payload.text || '')}</textarea>
+          </label>
+        `;
+      }
+
+      if (type === 'image') {
+        return `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label class="block">
+              <span class="text-xs text-slate-500">URL รูป (originalContentUrl)</span>
+              <input type="url" value="${UI.escapeHtml(payload.originalContentUrl || '')}"
+                     class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-simple-field="originalContentUrl" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-500">URL preview (previewImageUrl)</span>
+              <input type="url" value="${UI.escapeHtml(payload.previewImageUrl || '')}"
+                     class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-simple-field="previewImageUrl" />
+            </label>
+          </div>
+        `;
+      }
+
+      if (type === 'sticker') {
+        return `
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block">
+              <span class="text-xs text-slate-500">packageId</span>
+              <input type="text" value="${UI.escapeHtml(payload.packageId || '')}"
+                     class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-simple-field="packageId" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-500">stickerId</span>
+              <input type="text" value="${UI.escapeHtml(payload.stickerId || '')}"
+                     class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-simple-field="stickerId" />
+            </label>
+          </div>
+          <p class="text-xs text-slate-400">ดู ID ได้ที่ <a class="text-emerald-600 underline" target="_blank" href="https://developers.line.biz/en/docs/messaging-api/sticker-list/">LINE Sticker List</a></p>
+        `;
+      }
+
+      if (type === 'location') {
+        return `
+          <div class="space-y-2">
+            <label class="block">
+              <span class="text-xs text-slate-500">ชื่อสถานที่ (title)</span>
+              <input type="text" value="${UI.escapeHtml(payload.title || '')}"
+                     class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-simple-field="title" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-500">ที่อยู่ (address)</span>
+              <input type="text" value="${UI.escapeHtml(payload.address || '')}"
+                     class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-simple-field="address" />
+            </label>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="block">
+                <span class="text-xs text-slate-500">latitude</span>
+                <input type="number" step="any" value="${UI.escapeHtml(String(payload.latitude || ''))}"
+                       class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-simple-field="latitude" />
+              </label>
+              <label class="block">
+                <span class="text-xs text-slate-500">longitude</span>
+                <input type="number" step="any" value="${UI.escapeHtml(String(payload.longitude || ''))}"
+                       class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-simple-field="longitude" />
+              </label>
+            </div>
+          </div>
+        `;
+      }
+
+      if (type === 'flex') {
+        const presets = Store.state.flexPresets || [];
+        const options = presets.map((p) => `<option value="${UI.escapeHtml(p.id)}">${UI.escapeHtml(p.name)}</option>`).join('');
+        return `
+          <div class="space-y-3">
+            <div class="flex items-end gap-2">
+              <label class="flex-1">
+                <span class="text-xs text-slate-500">เลือก Preset Flex</span>
+                <select class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-field="flex-preset-id">
+                  <option value="">-- เลือก preset --</option>
+                  ${options}
+                </select>
+              </label>
+              <button class="px-3 py-2 text-sm bg-emerald-500 text-white rounded-md hover:bg-emerald-600 inline-flex items-center gap-1"
+                      data-action="apply-preset">${UI.icon('wand-2')} ใช้ Preset</button>
+            </div>
+            <div data-role="preset-fields" class="space-y-2"></div>
+            <label class="block">
+              <span class="text-xs text-slate-500">altText (ข้อความสำรองบนแจ้งเตือน)</span>
+              <input type="text" value="${UI.escapeHtml(payload.altText || '')}"
+                     class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" data-simple-field="altText" />
+            </label>
+            <details>
+              <summary class="text-xs text-slate-500 cursor-pointer">ดู JSON ของ Flex</summary>
+              <textarea rows="6" class="mt-2 block w-full px-3 py-2 border border-slate-300 rounded-md text-xs font-mono"
+                        data-field="payload_json">${UI.escapeHtml(m.payload_json || '')}</textarea>
+            </details>
+          </div>
+        `;
+      }
+
+      return `<div class="text-sm text-slate-400">ไม่รู้จักชนิด ${UI.escapeHtml(type)}</div>`;
+    },
+
+    safeParse(json) {
+      try { return JSON.parse(json || '{}'); } catch (e) { return {}; }
+    },
+
+    buildPreviewMessages(messages) {
+      return (messages || []).map((m) => {
+        const payload = this.safeParse(m.payload_json);
+        if (m.quick_reply_json) {
+          try {
+            const qr = JSON.parse(m.quick_reply_json);
+            if (qr && Array.isArray(qr.items)) payload.quickReply = qr;
+          } catch (e) {}
+        }
+        return payload;
+      });
+    },
+
+    // Silent update: mutate editor.messages without emitting.
+    // Used by `input` handlers so typing doesn't trigger a full re-render
+    // (which would wipe focus/selection from the active input).
+    updateMessageSilent(index, patch) {
+      const messages = Store.state.editor.messages.slice();
+      messages[index] = { ...messages[index], ...patch };
+      Store.state = {
+        ...Store.state,
+        editor: { ...Store.state.editor, messages }
+      };
+    },
+
+    updatePayloadFieldSilent(index, field, value) {
+      const messages = Store.state.editor.messages.slice();
+      const payload = this.safeParse(messages[index].payload_json);
+      if (field === 'latitude' || field === 'longitude') {
+        payload[field] = value === '' ? '' : Number(value);
+      } else {
+        payload[field] = value;
+      }
+      messages[index] = { ...messages[index], payload_json: JSON.stringify(payload) };
+      Store.state = {
+        ...Store.state,
+        editor: { ...Store.state.editor, messages }
+      };
+    },
+
+    changeMessageType(index, type) {
+      const template = (EDITOR_TYPE_TEMPLATES[type] || EDITOR_TYPE_TEMPLATES.text)();
+      const messages = Store.state.editor.messages.slice();
+      messages[index] = {
+        ...messages[index],
+        type: type,
+        payload_json: JSON.stringify(template)
+      };
+      Store.update('editor.messages', messages);
+    },
+
+    renderPresetFields(card, presetId) {
+      const fieldsWrap = card.querySelector('[data-role="preset-fields"]');
+      if (!fieldsWrap) return;
+      const preset = (Store.state.flexPresets || []).find((p) => p.id === presetId);
+      if (!preset) { fieldsWrap.innerHTML = ''; return; }
+
+      fieldsWrap.innerHTML = `
+        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-md">
+          <div class="text-xs text-emerald-800 font-semibold mb-1">${UI.escapeHtml(preset.name)}</div>
+          <div class="text-xs text-emerald-700 mb-3">${UI.escapeHtml(preset.description)}</div>
+          <div class="space-y-2">
+            ${preset.fields.map((f) => {
+              const safeKey = UI.escapeHtml(f.key);
+              const safeLabel = UI.escapeHtml(f.label + (f.required ? ' *' : ''));
+              const def = UI.escapeHtml(f.default || '');
+              if (f.type === 'textarea') {
+                return `<label class="block"><span class="text-xs text-slate-600">${safeLabel}</span>
+                  <textarea rows="2" data-preset-field="${safeKey}"
+                    class="mt-1 block w-full px-2 py-1 border border-slate-300 rounded text-sm">${def}</textarea></label>`;
+              }
+              const inputType = f.type === 'url' ? 'url' : 'text';
+              return `<label class="block"><span class="text-xs text-slate-600">${safeLabel}</span>
+                <input type="${inputType}" data-preset-field="${safeKey}" value="${def}" placeholder="${UI.escapeHtml(f.placeholder || '')}"
+                  class="mt-1 block w-full px-2 py-1 border border-slate-300 rounded text-sm" /></label>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    },
+
+    async applyPreset(card, index) {
+      const select = card.querySelector('[data-field="flex-preset-id"]');
+      const presetId = select && select.value;
+      if (!presetId) { UI.toast('เลือก preset ก่อน', { error: true }); return; }
+
+      const values = {};
+      card.querySelectorAll('[data-preset-field]').forEach((el) => {
+        values[el.getAttribute('data-preset-field')] = el.value;
+      });
+
+      try {
+        const flexMsg = await Api.request('flex.render', { id: presetId, values });
+        const messages = Store.state.editor.messages.slice();
+        messages[index] = { ...messages[index], type: 'flex', payload_json: JSON.stringify(flexMsg) };
+        Store.update('editor.messages', messages);
+        UI.toast('ใส่ Flex preset สำเร็จ');
+        AppClient.render();
+      } catch (err) {
+        UI.toast(err.message, { error: true });
+      }
+    },
+
+    bind(root) {
+      root.querySelector('#editorBackBtn')?.addEventListener('click', () => AppClient.activatePage('intents'));
+      root.querySelector('#editorPreviewBtn')?.addEventListener('click', () => this.goPreview());
+      root.querySelector('#editorSaveBtn')?.addEventListener('click', () => this.save());
+      root.querySelector('#editorAddBtn')?.addEventListener('click', () => {
+        const messages = Store.state.editor.messages.slice();
+        if (messages.length >= 5) { UI.toast('สูงสุด 5 ข้อความต่อ intent', { error: true }); return; }
+        messages.push({
+          order: messages.length + 1,
+          type: 'text',
+          payload_json: JSON.stringify({ type: 'text', text: '' }),
+          quick_reply_json: ''
+        });
+        Store.update('editor.messages', messages);
+      });
+
+      const collectHeader = () => {
+        const get = (id) => root.querySelector(id);
+        Store.set({
+          editor: {
+            ...Store.state.editor,
+            intent: get('#editorIntent')?.value || '',
+            match_type: get('#editorMatchType')?.value || 'exact',
+            priority: Number(get('#editorPriority')?.value || 0),
+            description: get('#editorDescription')?.value || '',
+            is_active: !!get('#editorActive')?.checked
+          }
+        });
+      };
+      ['#editorIntent', '#editorMatchType', '#editorPriority', '#editorDescription', '#editorActive'].forEach((sel) => {
+        const el = root.querySelector(sel);
+        if (el) el.addEventListener('change', collectHeader);
+        if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') el.addEventListener('blur', collectHeader);
+      });
+
+      // Bind per-message cards.
+      root.querySelectorAll('[data-msg-index]').forEach((card) => {
+        const index = Number(card.getAttribute('data-msg-index'));
+
+        card.querySelector('[data-field="type"]')?.addEventListener('change', (ev) => {
+          this.changeMessageType(index, ev.target.value);
+        });
+
+        card.querySelector('[data-action="remove"]')?.addEventListener('click', () => {
+          const messages = Store.state.editor.messages.filter((_, i) => i !== index);
+          Store.update('editor.messages', messages.map((m, i) => ({ ...m, order: i + 1 })));
+        });
+
+        card.querySelector('[data-action="move-up"]')?.addEventListener('click', () => {
+          if (index === 0) return;
+          const messages = Store.state.editor.messages.slice();
+          [messages[index - 1], messages[index]] = [messages[index], messages[index - 1]];
+          Store.update('editor.messages', messages.map((m, i) => ({ ...m, order: i + 1 })));
+        });
+
+        card.querySelector('[data-action="move-down"]')?.addEventListener('click', () => {
+          const messages = Store.state.editor.messages.slice();
+          if (index === messages.length - 1) return;
+          [messages[index + 1], messages[index]] = [messages[index], messages[index + 1]];
+          Store.update('editor.messages', messages.map((m, i) => ({ ...m, order: i + 1 })));
+        });
+
+        // Simple field bindings (one input per payload field).
+        // Use silent update + manual preview refresh so typing doesn't lose focus.
+        card.querySelectorAll('[data-simple-field]').forEach((el) => {
+          el.addEventListener('input', () => {
+            this.updatePayloadFieldSilent(index, el.getAttribute('data-simple-field'), el.value);
+            this.refreshPreview();
+          });
+        });
+
+        // Raw payload_json textarea (flex "see JSON" fallback).
+        const rawPayload = card.querySelector('[data-field="payload_json"]');
+        if (rawPayload) {
+          rawPayload.addEventListener('input', () => {
+            this.updateMessageSilent(index, { payload_json: rawPayload.value });
+            this.refreshPreview();
+          });
+        }
+
+        const qrEl = card.querySelector('[data-field="quick_reply_json"]');
+        if (qrEl) {
+          qrEl.addEventListener('input', () => {
+            this.updateMessageSilent(index, { quick_reply_json: qrEl.value });
+            this.refreshPreview();
+          });
+        }
+
+        // Flex preset dropdown.
+        const presetSelect = card.querySelector('[data-field="flex-preset-id"]');
+        if (presetSelect) {
+          presetSelect.addEventListener('change', () => this.renderPresetFields(card, presetSelect.value));
+        }
+        card.querySelector('[data-action="apply-preset"]')?.addEventListener('click', () => this.applyPreset(card, index));
+      });
+    },
+
+    refreshPreview() {
+      const container = document.getElementById('editorLivePreview');
+      if (!container) return;
+      container.innerHTML = UI.previewMessages(this.buildPreviewMessages(Store.state.editor.messages));
+      UI.iconRefresh();
+    },
+
+    async save() {
+      const e = Store.state.editor;
+      if (!e.intent || !e.intent.trim()) {
+        UI.toast('กรอกชื่อ intent', { error: true });
+        return;
+      }
+      if (!e.messages || e.messages.length === 0) {
+        UI.toast('เพิ่มข้อความอย่างน้อย 1 ข้อความ', { error: true });
+        return;
+      }
+
+      const payload = {
+        intent: e.intent,
+        previousKey: e.previousKey || '',
+        match_type: e.match_type || 'exact',
+        is_active: !!e.is_active,
+        priority: Number(e.priority || 0),
+        description: e.description || '',
+        messages: e.messages.map((m, i) => ({
+          order: i + 1,
+          type: m.type,
+          payload_json: m.payload_json,
+          quick_reply_json: m.quick_reply_json || ''
+        }))
+      };
+
+      try {
+        await Api.request('intents.save', payload);
+        UI.toast('บันทึก intent สำเร็จ');
+        await Pages.intents.reload();
+        AppClient.activatePage('intents');
+      } catch (err) {
+        UI.toast(err.message, { error: true });
+      }
+    },
+
+    goPreview() {
+      Store.set({
+        preview: { text: Store.state.editor.intent, result: null }
+      });
+      AppClient.activatePage('preview');
+    }
+  };
+</script>

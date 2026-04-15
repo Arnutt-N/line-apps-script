@@ -26,6 +26,7 @@
 
 - `SPREADSHEET_ID`
 - `LINE_CHANNEL_ACCESS_TOKEN`
+- `ADMIN_OWNER_EMAIL` (สำหรับ admin panel Phase 1; อีเมล Google ของผู้ดูแล 1 คน)
 
 ไม่บังคับ:
 
@@ -75,11 +76,40 @@
 ## ฟังก์ชันสำคัญ
 
 - `doPost(e)` รับ webhook
-- `doGet()` health check
+- `doGet(e)` เปิด admin panel (หรือ `?mode=health` คืน JSON สำหรับเช็กสุขภาพ)
+- `apiDispatch(req)` endpoint สำหรับ `google.script.run` จากหน้าแอดมิน
 - `setupClassicWebhook()` สร้างชีตตั้งต้นที่ต้องใช้
+- `setupIntentSchema()` สร้างชีต `intents` + `messages` สำหรับระบบ intent ใหม่
 - `testClassicConfig()` เช็ก config และนับจำนวนแถวข้อมูล
+
+## Admin Panel (Phase 1 MVP)
+
+โครงสร้างการใช้งาน:
+
+1. ตั้ง Script Property `ADMIN_OWNER_EMAIL` ให้เป็นอีเมล Google ของผู้ดูแล 1 คน
+2. รัน `setupIntentSchema()` จาก Apps Script editor (ครั้งแรก) เพื่อสร้างชีต `intents` + `messages`
+3. Deploy Web App แบบ **Execute as: Me** และ **Access: Anyone with Google account**
+4. เปิด URL `.../exec` ด้วยบัญชีที่ตั้งไว้ใน `ADMIN_OWNER_EMAIL`
+
+หน้าในระบบ:
+
+- **Login/Unauthorized** — แสดงเมื่ออีเมลไม่ตรงกับ `ADMIN_OWNER_EMAIL`
+- **Intent list** — ตารางแสดง intent ทั้งหมด, สถานะ, จำนวนข้อความ, ปุ่มแก้ไข/ลบ
+- **Intent editor** — ฟอร์มสร้าง/แก้ไข intent พร้อมตัวเลือกชนิดข้อความ:
+  - text / image / sticker / location / flex (พร้อม quick reply)
+  - Flex มี preset 5 แบบ: ประกาศ, นามบัตร, สินค้า, เมนูรายการ, อีเวนท์
+- **Preview** — ทดสอบพิมพ์ข้อความและดู response ที่ระบบจะตอบ (ยิง `findIntent_` จริง)
+- **Histories** — อ่านประวัติแชทและการติดตาม (read-only จากชีต log)
+
+Stack ของหน้าเว็บ:
+
+- HtmlService + Tailwind CSS (ผ่าน `@tailwindcss/browser@4` CDN)
+- ฟอนต์ Google Noto Sans Thai
+- ไอคอน Lucide (SVG)
+- SPA แบบเบาเขียนเอง ไม่ใช้ framework
 
 ## หมายเหตุ
 
 - ถ้าจะใช้ direct GAS webhook ให้ตั้ง `LINE_REQUIRE_SIGNATURE=false`
 - loading indicator เป็น best-effort ของ LINE ไม่ได้การันตีว่าจะเห็นทุกครั้ง
+- Admin panel ใช้ CacheService คนละ bucket กับ `IntentRepo`; หลังแก้ไข intent ระบบจะล้างแคชให้อัตโนมัติ

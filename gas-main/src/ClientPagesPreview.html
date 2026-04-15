@@ -1,0 +1,68 @@
+<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.preview = {
+    async init() {},
+    destroy() {},
+
+    render() {
+      const p = Store.state.preview;
+      const bubbles = p.result && p.result.matched
+        ? UI.previewMessages(p.result.messages || [])
+        : (p.result && !p.result.matched
+            ? `<div class="text-sm text-rose-500 p-4">ไม่พบ intent ที่ตรงกับ "${UI.escapeHtml(p.result.text)}"</div>`
+            : '<div class="text-sm text-slate-400 italic p-6 text-center">พิมพ์ข้อความและกด "ทดสอบ"</div>');
+
+      return `
+        <div class="space-y-4 max-w-3xl mx-auto">
+          <div class="flex items-center gap-2">
+            <button id="previewBackBtn" class="p-2 rounded-md hover:bg-slate-100 text-slate-600">
+              ${UI.icon('arrow-left')}
+            </button>
+            <div>
+              <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                ${UI.icon('play', 'text-emerald-600')} ทดสอบ intent
+              </h2>
+              <p class="text-sm text-slate-500">พิมพ์ข้อความแบบที่ผู้ใช้ส่งมา เพื่อดูผลลัพธ์จากระบบ (ใช้ข้อมูลจริงในชีต)</p>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <div class="flex gap-2">
+              <input id="previewTextInput" type="text" value="${UI.escapeHtml(p.text || '')}"
+                     placeholder="พิมพ์ข้อความจำลอง..."
+                     class="flex-1 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <button id="previewRunBtn" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md inline-flex items-center gap-1">
+                ${UI.icon('sparkles')} ทดสอบ
+              </button>
+            </div>
+            <div class="bg-slate-100 rounded-lg p-4 min-h-[200px] scroll-y max-h-[60vh]">
+              ${bubbles}
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      root.querySelector('#previewBackBtn')?.addEventListener('click', () => AppClient.activatePage('intents'));
+
+      const run = async () => {
+        const input = root.querySelector('#previewTextInput');
+        const text = input ? input.value : '';
+        Store.update('preview.text', text);
+        try {
+          const result = await Api.request('intents.testMatch', { text });
+          Store.update('preview.result', result);
+        } catch (err) {
+          UI.toast(err.message, { error: true });
+        }
+      };
+
+      root.querySelector('#previewRunBtn')?.addEventListener('click', run);
+      root.querySelector('#previewTextInput')?.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') run();
+      });
+    }
+  };
+</script>

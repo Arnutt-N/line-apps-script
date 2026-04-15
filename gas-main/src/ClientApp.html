@@ -1,0 +1,145 @@
+<script>
+  window.AppClient = {
+    navItems: [
+      { key: 'intents',   label: 'Intents',  icon: 'message-square-text' },
+      { key: 'preview',   label: 'Preview',  icon: 'play' },
+      { key: 'histories', label: 'Histories', icon: 'history' }
+    ],
+    pageTitles: {
+      intents:   'รายการ Intent',
+      editor:    'แก้ไข Intent',
+      preview:   'ทดสอบ Intent',
+      histories: 'ประวัติการใช้งาน',
+      login:     'Login Required'
+    },
+    currentModule: null,
+
+    async boot() {
+      if (!Store.state.user || Store.state.user.isAuthorized === false) {
+        await this.activatePage('login');
+        Store.subscribe(() => this.render());
+        return;
+      }
+
+      await this.activatePage(Store.state.page || 'intents');
+      Store.subscribe(() => this.render());
+    },
+
+    async activatePage(pageKey) {
+      const page = pageKey || 'intents';
+      if (this.currentModule && typeof this.currentModule.destroy === 'function') {
+        this.currentModule.destroy();
+      }
+      this.currentModule = null;
+
+      Store.update('page', page);
+      const module = window.Pages[page];
+      if (!module) {
+        throw new Error(`Missing page module: ${page}`);
+      }
+
+      this.currentModule = module;
+      if (typeof module.init === 'function') {
+        await module.init();
+      }
+
+      this.render();
+    },
+
+    render() {
+      const root = document.getElementById('appRoot');
+      if (!root || !this.currentModule) return;
+
+      const state = Store.state;
+      const page = state.page || 'intents';
+      const content = typeof this.currentModule.render === 'function' ? this.currentModule.render() : '';
+
+      if (page === 'login') {
+        root.innerHTML = content;
+        if (typeof this.currentModule.bind === 'function') this.currentModule.bind(root);
+        UI.iconRefresh();
+        return;
+      }
+
+      const pageTitle = this.pageTitles[page] || page;
+      const user = state.user || {};
+
+      root.innerHTML = `
+        <div class="min-h-screen flex">
+          <aside class="w-60 bg-slate-900 text-slate-200 flex flex-col flex-shrink-0">
+            <div class="p-5 border-b border-slate-800 flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow">
+                ${UI.icon('sparkles')}
+              </div>
+              <div>
+                <div class="text-sm font-bold">LINE OA Admin</div>
+                <div class="text-[11px] text-slate-400">Phase 1 MVP</div>
+              </div>
+            </div>
+            <nav class="flex-1 px-3 py-4 space-y-1">
+              ${this.navItems.map((item) => {
+                const active = page === item.key || (page === 'editor' && item.key === 'intents');
+                const cls = active
+                  ? 'bg-emerald-500 text-white'
+                  : 'text-slate-300 hover:bg-slate-800';
+                return `
+                  <button class="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm ${cls}" data-nav-page="${item.key}">
+                    ${UI.icon(item.icon)}
+                    <span>${UI.escapeHtml(item.label)}</span>
+                  </button>
+                `;
+              }).join('')}
+            </nav>
+            <div class="p-4 border-t border-slate-800 text-xs text-slate-400 space-y-1">
+              <div class="flex items-center gap-2">${UI.icon('user-round', 'text-emerald-400')} ${UI.escapeHtml(user.displayName || user.email || '-')}</div>
+              <div class="flex items-center gap-2">${UI.icon('shield', 'text-emerald-400')} role: ${UI.escapeHtml(user.role || '-')}</div>
+            </div>
+          </aside>
+
+          <main class="flex-1 flex flex-col min-w-0">
+            <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+              <div>
+                <div class="text-base font-semibold text-slate-800">${UI.escapeHtml(pageTitle)}</div>
+                <div class="text-xs text-slate-400">Noto Sans Thai · Tailwind CSS · Lucide icons</div>
+              </div>
+              <div class="flex items-center gap-2 text-xs text-slate-500">
+                <span>${UI.escapeHtml(new Date().toLocaleString('th-TH'))}</span>
+                ${state.loading ? `<span class="inline-flex items-center gap-1 text-emerald-600">${UI.icon('loader')} กำลังโหลด</span>` : ''}
+              </div>
+            </header>
+            <section class="flex-1 p-6 overflow-y-auto bg-slate-50" id="mainContent">${content}</section>
+          </main>
+        </div>
+      `;
+
+      root.querySelectorAll('[data-nav-page]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          this.activatePage(btn.getAttribute('data-nav-page'));
+        });
+      });
+
+      const section = root.querySelector('#mainContent');
+      if (typeof this.currentModule.bind === 'function' && section) {
+        this.currentModule.bind(section);
+      }
+      UI.iconRefresh();
+    }
+  };
+
+  (async function () {
+    try {
+      await window.AppClient.boot();
+    } catch (error) {
+      const root = document.getElementById('appRoot');
+      if (root) {
+        root.innerHTML = `
+          <div class="max-w-2xl mx-auto mt-16 p-6 bg-white border border-rose-200 rounded-xl shadow-sm">
+            <h2 class="text-lg font-bold text-rose-800 mb-2">เกิดข้อผิดพลาด</h2>
+            <pre class="whitespace-pre-wrap text-sm text-rose-900 bg-rose-50 p-3 rounded">${UI.escapeHtml(error.message || String(error))}</pre>
+            <p class="text-sm text-slate-500 mt-3">ตรวจสอบว่าตั้ง Script Properties ครบถ้วน และ deploy Web App แล้ว</p>
+          </div>
+        `;
+      }
+    }
+  })();
+</script>

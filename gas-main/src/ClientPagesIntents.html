@@ -1,0 +1,170 @@
+<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.intents = {
+    async init() {
+      await this.reload();
+    },
+
+    destroy() {},
+
+    async reload() {
+      await UI.withLoading(async () => {
+        try {
+          const items = await Api.request('intents.list', {});
+          Store.update('intents', { items: items || [], loaded: true });
+        } catch (err) {
+          UI.toast(err.message, { error: true });
+        }
+      });
+    },
+
+    render() {
+      const { items, loaded } = Store.state.intents;
+      const loading = Store.state.loading;
+
+      const rows = items.length === 0 && loaded
+        ? `<tr><td colspan="6" class="py-10 text-center text-slate-400">ยังไม่มี intent — กดปุ่ม "+ เพิ่ม intent" เพื่อสร้างใหม่</td></tr>`
+        : items.map((row) => `
+            <tr class="border-t border-slate-100 hover:bg-slate-50 transition">
+              <td class="py-3 px-4 font-medium text-slate-800">${UI.escapeHtml(row.intent)}</td>
+              <td class="py-3 px-4 text-xs text-slate-500">${UI.escapeHtml(row.match_type)}</td>
+              <td class="py-3 px-4">${row.is_active ? UI.badge('เปิดใช้งาน', 'green') : UI.badge('ปิด', 'slate')}</td>
+              <td class="py-3 px-4 text-sm text-slate-600">${row.messageCount} ข้อความ</td>
+              <td class="py-3 px-4 text-sm text-slate-500 max-w-xs truncate">${UI.escapeHtml(row.description || '-')}</td>
+              <td class="py-3 px-4 text-right whitespace-nowrap">
+                <button class="px-3 py-1 text-sm text-emerald-700 hover:bg-emerald-50 rounded-md transition inline-flex items-center gap-1"
+                        data-action="edit" data-intent="${UI.escapeHtml(row.intent)}">
+                  ${UI.icon('pencil')} แก้ไข
+                </button>
+                <button class="px-3 py-1 text-sm text-rose-600 hover:bg-rose-50 rounded-md transition inline-flex items-center gap-1"
+                        data-action="delete" data-intent="${UI.escapeHtml(row.intent)}">
+                  ${UI.icon('trash-2')} ลบ
+                </button>
+              </td>
+            </tr>
+          `).join('');
+
+      return `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                ${UI.icon('message-square-text', 'text-emerald-600')} Intent / Auto-reply
+              </h2>
+              <p class="text-sm text-slate-500 mt-1">จัดการข้อความตอบกลับอัตโนมัติของ LINE OA</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="intentsRefreshBtn" class="px-3 py-2 text-sm text-slate-600 border border-slate-300 rounded-md hover:bg-slate-50 inline-flex items-center gap-1">
+                ${UI.icon('refresh-cw')} รีเฟรช
+              </button>
+              <button id="intentsPurgeBtn" class="px-3 py-2 text-sm text-amber-700 border border-amber-300 rounded-md hover:bg-amber-50 inline-flex items-center gap-1">
+                ${UI.icon('database-zap')} ล้าง Cache
+              </button>
+              <button id="intentsNewBtn" class="px-3 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-md inline-flex items-center gap-1">
+                ${UI.icon('plus')} เพิ่ม intent
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <table class="w-full">
+              <thead>
+                <tr class="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+                  <th class="py-3 px-4">Intent</th>
+                  <th class="py-3 px-4">ชนิดการจับคู่</th>
+                  <th class="py-3 px-4">สถานะ</th>
+                  <th class="py-3 px-4">ข้อความ</th>
+                  <th class="py-3 px-4">คำอธิบาย</th>
+                  <th class="py-3 px-4 text-right">การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${loading && !loaded ? '<tr><td colspan="6" class="py-10 text-center text-slate-400">กำลังโหลด...</td></tr>' : rows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      root.querySelector('#intentsRefreshBtn')?.addEventListener('click', () => this.reload());
+      root.querySelector('#intentsNewBtn')?.addEventListener('click', () => {
+        Store.set({
+          editor: {
+            isNew: true,
+            previousKey: '',
+            intent: '',
+            match_type: 'exact',
+            is_active: true,
+            priority: 0,
+            description: '',
+            messages: [{ order: 1, type: 'text', payload_json: JSON.stringify({ type: 'text', text: '' }), quick_reply_json: '' }]
+          }
+        });
+        AppClient.activatePage('editor');
+      });
+
+      root.querySelector('#intentsPurgeBtn')?.addEventListener('click', async () => {
+        try {
+          await Api.request('intents.purgeCache', {});
+          UI.toast('ล้างแคชสำเร็จ ระบบจะโหลดข้อมูลใหม่เมื่อมีคนพิมพ์');
+        } catch (err) {
+          UI.toast(err.message, { error: true });
+        }
+      });
+
+      root.querySelectorAll('[data-action="edit"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const intent = btn.getAttribute('data-intent');
+          await this.openEditor(intent);
+        });
+      });
+
+      root.querySelectorAll('[data-action="delete"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const intent = btn.getAttribute('data-intent');
+          if (!confirm(`ยืนยันลบ intent "${intent}"?`)) return;
+          try {
+            await Api.request('intents.delete', { intent });
+            UI.toast('ลบสำเร็จ');
+            await this.reload();
+          } catch (err) {
+            UI.toast(err.message, { error: true });
+          }
+        });
+      });
+    },
+
+    async openEditor(intentKey) {
+      try {
+        const data = await Api.request('intents.get', { intent: intentKey });
+        if (!data) {
+          UI.toast('ไม่พบ intent นี้', { error: true });
+          return;
+        }
+        Store.set({
+          editor: {
+            isNew: false,
+            previousKey: data.intent,
+            intent: data.intent,
+            match_type: data.match_type || 'exact',
+            is_active: data.is_active !== false,
+            priority: Number(data.priority || 0),
+            description: data.description || '',
+            messages: (data.messages || []).map((m, i) => ({
+              order: m.order || (i + 1),
+              type: m.type || 'text',
+              payload_json: m.payload_json || '',
+              quick_reply_json: m.quick_reply_json || ''
+            }))
+          }
+        });
+        AppClient.activatePage('editor');
+      } catch (err) {
+        UI.toast(err.message, { error: true });
+      }
+    }
+  };
+</script>

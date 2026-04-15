@@ -1,0 +1,52 @@
+<script>
+  window.Pages = window.Pages || {};
+
+  window.Pages.login = {
+    async init() {},
+    destroy() {},
+
+    render() {
+      const user = Store.state.user || {};
+      const hint = user.email
+        ? `บัญชี <code class="px-1 py-0.5 bg-slate-100 rounded">${UI.escapeHtml(user.email)}</code> ไม่อยู่ในรายชื่อผู้ดูแลระบบ`
+        : 'ระบบยังไม่สามารถอ่านอีเมลบัญชีที่ใช้งาน กรุณา login ด้วย Google Account ก่อน';
+
+      return `
+        <div class="min-h-screen flex items-center justify-center p-6">
+          <div class="w-full max-w-md bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center">
+                ${UI.icon('shield-check', 'text-lg')}
+              </div>
+              <div>
+                <div class="text-xs uppercase tracking-wider text-slate-500">LINE OA Admin</div>
+                <div class="text-lg font-bold text-slate-800">Phase 1 MVP</div>
+              </div>
+            </div>
+            <h1 class="text-xl font-bold mb-2 text-slate-900">ต้องการสิทธิ์เข้าใช้งาน</h1>
+            <p class="text-sm text-slate-600 leading-relaxed mb-6">${hint}</p>
+            <div class="space-y-2 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <div class="font-semibold text-slate-700 flex items-center gap-2">
+                ${UI.icon('list-checks', 'text-emerald-600')} ขั้นตอนตั้งค่า
+              </div>
+              <ol class="list-decimal list-inside space-y-1">
+                <li>เปิด Apps Script → <b>Project Settings</b></li>
+                <li>เพิ่ม Script Property <code class="text-xs bg-white border border-slate-200 px-1 rounded">ADMIN_OWNER_EMAIL</code> = อีเมลผู้ดูแล</li>
+                <li>Deploy Web App แบบ <b>Execute as: Me</b>, <b>Access: Anyone with Google account</b></li>
+                <li>เปิด URL ด้วยบัญชีที่ตั้งไว้</li>
+              </ol>
+            </div>
+            <button id="loginReloadBtn" class="mt-6 w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition flex items-center justify-center gap-2">
+              ${UI.icon('refresh-cw')} ลองใหม่
+            </button>
+          </div>
+        </div>
+      `;
+    },
+
+    bind(root) {
+      const btn = root.querySelector('#loginReloadBtn');
+      if (btn) btn.addEventListener('click', () => window.location.reload());
+    }
+  };
+</script>

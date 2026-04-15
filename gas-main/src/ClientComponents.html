@@ -1,0 +1,98 @@
+<script>
+  window.UI = {
+    escapeHtml(input) {
+      return String(input == null ? '' : input)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    },
+
+    formatDateTime(value) {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return new Intl.DateTimeFormat('th-TH', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      }).format(date);
+    },
+
+    toast(message, opts) {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+      const item = document.createElement('div');
+      item.className = 'toast' + ((opts && opts.error) ? ' is-error' : '');
+      item.textContent = String(message || '');
+      container.appendChild(item);
+      setTimeout(() => item.remove(), 4200);
+    },
+
+    iconRefresh() {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    },
+
+    icon(name, extraClass) {
+      return `<i data-lucide="${this.escapeHtml(name)}"${extraClass ? ` class="${this.escapeHtml(extraClass)}"` : ''}></i>`;
+    },
+
+    badge(label, color) {
+      const classes = {
+        green:  'bg-emerald-100 text-emerald-700',
+        red:    'bg-rose-100 text-rose-700',
+        slate:  'bg-slate-200 text-slate-700',
+        blue:   'bg-blue-100 text-blue-700',
+        amber:  'bg-amber-100 text-amber-800'
+      };
+      const tone = classes[color] || classes.slate;
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${tone}">${this.escapeHtml(label)}</span>`;
+    },
+
+    async withLoading(fn) {
+      Store.update('loading', true);
+      try {
+        return await fn();
+      } finally {
+        Store.update('loading', false);
+      }
+    },
+
+    // Renders a naive LINE-like preview of a messages[] array.
+    previewMessages(messages) {
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return '<div class="text-slate-400 text-sm">ไม่มีข้อความ</div>';
+      }
+      return messages.map((m) => this.previewSingle(m)).join('');
+    },
+
+    previewSingle(msg) {
+      if (!msg || !msg.type) return '';
+      switch (msg.type) {
+        case 'text':
+          return `<div class="line-bubble mb-2">${this.escapeHtml(msg.text || '')}${this.renderQuickReply(msg.quickReply)}</div>`;
+        case 'image':
+          return `<div class="mb-2"><img src="${this.escapeHtml(msg.previewImageUrl || msg.originalContentUrl || '')}" alt="" class="rounded-lg max-w-[240px] max-h-[240px] object-cover border border-slate-200" />${this.renderQuickReply(msg.quickReply)}</div>`;
+        case 'sticker':
+          return `<div class="line-bubble mb-2 italic text-slate-500">[sticker] pkg=${this.escapeHtml(msg.packageId || '')} id=${this.escapeHtml(msg.stickerId || '')}</div>`;
+        case 'location':
+          return `<div class="line-bubble mb-2"><div class="font-semibold">📍 ${this.escapeHtml(msg.title || '')}</div><div class="text-xs text-slate-500">${this.escapeHtml(msg.address || '')}</div><div class="text-xs text-slate-400 mt-1">${this.escapeHtml(String(msg.latitude || ''))}, ${this.escapeHtml(String(msg.longitude || ''))}</div>${this.renderQuickReply(msg.quickReply)}</div>`;
+        case 'flex':
+          return `<div class="mb-2 p-3 bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-lg max-w-[260px]"><div class="text-xs font-semibold text-emerald-700 mb-1">Flex · ${this.escapeHtml(msg.altText || '')}</div><pre class="text-[10px] text-emerald-900 overflow-auto max-h-40">${this.escapeHtml(JSON.stringify(msg.contents, null, 2))}</pre>${this.renderQuickReply(msg.quickReply)}</div>`;
+        default:
+          return `<div class="line-bubble mb-2 italic text-slate-500">[${this.escapeHtml(msg.type)}]</div>`;
+      }
+    },
+
+    renderQuickReply(qr) {
+      if (!qr || !Array.isArray(qr.items) || qr.items.length === 0) return '';
+      const chips = qr.items.map((item) => {
+        const label = (item && item.action && item.action.label) || '';
+        return `<span class="inline-block px-3 py-1 rounded-full bg-emerald-500 text-white text-xs">${this.escapeHtml(label)}</span>`;
+      }).join(' ');
+      return `<div class="mt-2 flex flex-wrap gap-1">${chips}</div>`;
+    }
+  };
+</script>
